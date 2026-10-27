@@ -39,7 +39,6 @@ func PrintBanner() {
 	b7 := colors.White + `  ▀█   ███   █▀    ███    ███  ▀█   █▀    ███    ███  ▀██████▀  ` + colors.Reset
 	b8 := colors.White + `                   ███    ███                ▀██████▀           ` + colors.Reset
 
-	fmt.Println()
 	fmt.Println(b1)
 	fmt.Println(b2)
 	fmt.Println(b3)
@@ -48,12 +47,11 @@ func PrintBanner() {
 	fmt.Println(b6)
 	fmt.Println(b7)
 	fmt.Println(b8)
-	fmt.Printf("%s           [+] NATIVE GO ULTRA ENGINE V2 - 200M+ CPM EDITION [+]%s\n", colors.CyanNeon, colors.Reset)
-	fmt.Printf("%s           [+] Goroutines Zero-IPC  |  [+] Output <số>_<tên>.txt  |  [+] Tự dọn rác .tmp%s\n\n", colors.TextMuted, colors.Reset)
+	fmt.Printf("%s        [+] NATIVE GO ULTRA ENGINE V2 - 200M+ CPM  |  Goroutines Zero-IPC  |  Tự dọn rác .tmp%s\n", colors.CyanNeon, colors.Reset)
 }
 
 func PrintMenu() {
-	fmt.Printf("%s  DANH SÁCH 29 CHỨC NĂNG TỐI ƯU SIÊU TỐC:%s\n", colors.MangoGold, colors.Reset)
+	fmt.Printf("%s  DANH SÁCH 30 CHỨC NĂNG TỐI ƯU SIÊU TỐC:%s\n", colors.MangoGold, colors.Reset)
 	fmt.Printf("%s  ─────────────────────────────────────────────────────────────────────────────%s\n", colors.TextMuted, colors.Reset)
 
 	col1 := features.Features[:15]

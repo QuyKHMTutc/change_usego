@@ -48,36 +48,36 @@ func SetupTerminalWindow() {
 	if err == nil && handle != syscall.InvalidHandle {
 		var font consoleFontInfoEx
 		font.cbSize = uint32(unsafe.Sizeof(font))
-		font.dwFontSize.Y = 17
+		font.dwFontSize.Y = 16
 		font.fontFamily = 54 // TMPF_VECTOR | FF_MODERN
 		font.fontWeight = 400
 		copy(font.faceName[:], syscall.StringToUTF16("Consolas"))
 		_, _, _ = procSetCurrentConsoleFontEx.Call(uintptr(handle), 0, uintptr(unsafe.Pointer(&font)))
 	}
 
-	// 3. Goi mode con de mo rong so cot va so dong cua terminal len 128 cot (khong bao gio bi tran chu)
-	cmd := exec.Command("cmd", "/c", "mode con: cols=128 lines=50")
+	// 3. Goi mode con de co gian vua khit bang (124 cot x 48 dong)
+	cmd := exec.Command("cmd", "/c", "mode con: cols=124 lines=48")
 	_ = cmd.Run()
 
-	// 4. Can giua va co gian kich thuoc cua so theo ty le man hinh Windows
+	// 4. Can giua va co gian kich thuoc cua so gon gang vua van voi bang (khong mo qua rong)
 	hwnd, _, _ := procGetConsoleWindow.Call()
 	if hwnd != 0 {
 		sw, _, _ := procGetSystemMetrics.Call(0) // SM_CXSCREEN
 		sh, _, _ := procGetSystemMetrics.Call(1) // SM_CYSCREEN
 
-		winW := int(sw) - 60
-		if winW > 1280 {
-			winW = 1280
+		winW := 1130
+		if winW > int(sw)-30 {
+			winW = int(sw) - 30
 		}
-		winH := int(sh) - 60
-		if winH > 960 {
-			winH = 960
+		winH := 890
+		if winH > int(sh)-50 {
+			winH = int(sh) - 50
 		}
 		posX := (int(sw) - winW) / 2
 		if posX < 0 {
 			posX = 0
 		}
-		posY := (int(sh) - winH) / 2 - 10
+		posY := (int(sh)-winH)/2 - 10
 		if posY < 5 {
 			posY = 5
 		}
@@ -154,7 +154,8 @@ var MenuItems = []MenuItem{
 	{26, "Chỉ lấy số trong Pass (>= 6 số)", "Lấy số trong pass, xóa chữ & ký tự (giữ pass >= 6 số)", false},
 	{27, "N Chữ Email + Số Pass (27 3D / 27 3C)", "Ghép ĐẦU (3D) / CUỐI (3C) + gộp 7 biến thể (!, @, $, *, #)", false},
 	{28, "Tên Email làm Pass mới (6-15 chữ)", "Lấy chữ từ tên mail viết hoa đầu làm pass mới", false},
-	{29, "Giữ User + Pass 2 âm tiết quan trọng", "Giữ User & Số, chữ trong pass rút gọn 2 âm tiết", false},
+	{29, "Chèn ký tự đặc biệt tại vị trí bất kỳ", "Gõ 29 <vị_trí><ký_tự> (Ví dụ: 29 2@, 29 3$...)", false},
+	{30, "Ghép 2 số cuối Pass thành Năm (19xx/20xx)", "50-99 ghép 1950-1999, 01-26 ghép 2001-2026 (loại còn lại)", false},
 }
 
 // getFeatureThemeColor phoi mau hien dai theo tung cum chuc nang (Modern Functional Palette)
@@ -202,7 +203,7 @@ func DisplayTableMenu() {
 		vBar,
 	)
 
-	fmt.Printf("\n  %s%s[Bước 2] DANH MỤC 29 CHỨC NĂNG XỬ LÝ COMBO%s\n", colors.Bold, colors.CyanNeon, colors.Reset)
+	fmt.Printf("  %s%s[Bước 2] DANH MỤC 30 CHỨC NĂNG XỬ LÝ COMBO%s\n", colors.Bold, colors.CyanNeon, colors.Reset)
 	fmt.Println(bTop)
 	fmt.Println(headerLine)
 	fmt.Println(bMid)
@@ -212,11 +213,7 @@ func DisplayTableMenu() {
 		sttStr := fmt.Sprintf("%s[%s%s%2d%s%s]%s", colors.BorderDim, colors.Reset, colors.CyanNeon, fid, colors.Reset, colors.BorderDim, colors.Reset)
 
 		themeColor := getFeatureThemeColor(fid)
-		tag := ""
-		if item.IsVIP {
-			tag = colors.PurpleVIP + " [VIP]" + colors.Reset
-		}
-		nameStr := themeColor + item.Name + colors.Reset + tag
+		nameStr := themeColor + item.Name + colors.Reset
 
 		descStr := colors.TextMuted + item.Desc + colors.Reset
 

@@ -85,8 +85,11 @@ func getSafeOutputFilename(outDir string, feat features.Feature, arg string) str
 		val = strings.Trim(val, ".@")
 		if val == "2" || strings.Contains(val, "gmail") {
 			filename = "25_gmail.txt"
-		} else {
+		} else if val == "1" || val == "hotmail" || val == "outlook" || val == "" {
 			filename = "25_hotmail.txt"
+		} else {
+			safe := cleanNameRegex.ReplaceAllString(val, "_")
+			filename = fmt.Sprintf("25_%s.txt", safe)
 		}
 	case 27:
 		val := strings.ToUpper(cleanArg)
@@ -101,6 +104,15 @@ func getSafeOutputFilename(outDir string, feat features.Feature, arg string) str
 			n = m
 		}
 		filename = fmt.Sprintf("27_%s%s.txt", n, pos)
+	case 29:
+		val := cleanArg
+		if val == "" {
+			val = "2@"
+		}
+		safe := cleanNameRegex.ReplaceAllString(val, "_")
+		filename = fmt.Sprintf("29_%s.txt", safe)
+	case 30:
+		filename = "30_year.txt"
 	default:
 		if cleanArg != "" {
 			safe := cleanNameRegex.ReplaceAllString(cleanArg, "_")
@@ -113,8 +125,84 @@ func getSafeOutputFilename(outDir string, feat features.Feature, arg string) str
 	return filepath.Join(outDir, filename)
 }
 
+func promptCustomArg(featID int, reader *bufio.Reader) string {
+	switch featID {
+	case 11:
+		fmt.Printf("\n  %s> Chọn chế độ lấy số email %s(all: Tất cả số | 2: 2 số cuối | Enter: Lấy cả hai):%s ",
+			colors.CyanNeon, colors.TextMuted, colors.Reset)
+	case 12:
+		fmt.Printf("\n  %s> Nhập ký tự muốn mã hóa %s(Chọn: a [a->@], i [i->!], s [s->$]):%s ",
+			colors.CyanNeon, colors.TextMuted, colors.Reset)
+	case 14:
+		fmt.Printf("\n  %s> Nhập số lượng chữ cái đầu email muốn lấy %s(Ví dụ: 2, 3, 4, 5... bất kỳ):%s ",
+			colors.CyanNeon, colors.TextMuted, colors.Reset)
+	case 15:
+		fmt.Printf("\n  %s> Nhập ký tự đặc biệt muốn chèn TRƯỚC số %s(Ví dụ: @, $, #, !, %%, _... bất kỳ):%s ",
+			colors.CyanNeon, colors.TextMuted, colors.Reset)
+	case 16:
+		fmt.Printf("\n  %s> Nhập ký tự đặc biệt muốn chèn SAU số %s(Ví dụ: @, #, $, !, %%, _... bất kỳ):%s ",
+			colors.CyanNeon, colors.TextMuted, colors.Reset)
+	case 20:
+		fmt.Printf("\n  %s> Nhập chuỗi ký tự muốn ghép cho chức năng [20] %s(Ví dụ: Aa):%s ",
+			colors.CyanNeon, colors.TextMuted, colors.Reset)
+	case 21:
+		fmt.Printf("\n  %s> Chọn chế độ đổi chữ cái đầu %s(H: Viết HOA chữ đầu | T: Viết THƯỜNG chữ đầu):%s ",
+			colors.CyanNeon, colors.TextMuted, colors.Reset)
+	case 25:
+		fmt.Printf("\n  %s> Nhập domain muốn tách %s(1: Hotmail/Outlook | 2: Gmail | hoặc domain bất kỳ ví dụ: yahoo.com):%s ",
+			colors.CyanNeon, colors.TextMuted, colors.Reset)
+	case 27:
+		fmt.Printf("\n  %s> Nhập số ký tự và vị trí %s(Ví dụ: 3D cho vào đầu, 3C cho vào cuối):%s ",
+			colors.CyanNeon, colors.TextMuted, colors.Reset)
+	case 29:
+		fmt.Printf("\n  %s> Nhập vị trí và ký tự muốn chèn %s(Ví dụ: 2@ chèn @ sau chữ 1, 3$ chèn $ sau chữ 2):%s ",
+			colors.CyanNeon, colors.TextMuted, colors.Reset)
+	default:
+		fmt.Printf("\n  %s> Nhập chuỗi ký tự muốn ghép cho chức năng [%d] %s(Ví dụ: Aa):%s ",
+			colors.CyanNeon, featID, colors.TextMuted, colors.Reset)
+	}
+
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return ""
+	}
+	val := strings.TrimSpace(line)
+
+	if val == "" {
+		switch featID {
+		case 12:
+			return "a"
+		case 14:
+			return "2"
+		case 15:
+			return "@"
+		case 16:
+			return "@"
+		case 20:
+			return "Aa"
+		case 21:
+			return "H"
+		case 25:
+			return "1"
+		case 27:
+			return "3D"
+		case 29:
+			return "2@"
+		}
+	}
+
+	return val
+}
+
 func main() {
 	ui.SetupTerminalWindow()
+
+	home, _ := os.UserHomeDir()
+	baseResults := filepath.Join(home, "Desktop", "results")
+	if count, freed := processor.CleanupAllStaleTempFiles(baseResults); count > 0 {
+		fmt.Printf("  %s[*] Đã tự động dọn dẹp %d file tạm cũ, giải phóng %.2f MB dung lượng.%s\n",
+			colors.MintGreen, count, float64(freed)/(1024*1024), colors.Reset)
+	}
 
 	var currentFile string
 	if len(os.Args) > 1 && os.Args[1] != "" {
@@ -132,6 +220,7 @@ func main() {
 		chosen, err := ui.OpenFileDialog("Chọn file dữ liệu đầu vào (.txt)")
 		if err == nil && chosen != "" {
 			currentFile = chosen
+			ui.SetupTerminalWindow()
 			break
 		}
 
@@ -210,6 +299,13 @@ func main() {
 			continue
 		}
 
+		// Xử lý các chức năng cần tham số bổ sung nếu người dùng chưa nhập
+		for i := range tasks {
+			if tasks[i].Feat.HasArg && strings.TrimSpace(tasks[i].Arg) == "" {
+				tasks[i].Arg = promptCustomArg(tasks[i].Feat.ID, reader)
+			}
+		}
+
 		outDir := getResultsDir(currentFile)
 		fmt.Printf("\n  %s===> BẮT ĐẦU XỬ LÝ %d TÁC VỤ...%s\n\n", colors.CyanNeon, len(tasks), colors.Reset)
 
@@ -221,23 +317,37 @@ func main() {
 
 			if t.Feat.ID == 25 {
 				outMatch := getSafeOutputFilename(outDir, t.Feat, t.Arg)
-				outOther := filepath.Join(outDir, "25_other.txt")
+				outOtherName := "25_other.txt"
+				if strings.Contains(strings.ToLower(filepath.Base(outMatch)), "gmail") {
+					outOtherName = "25_other_gmail.txt"
+				}
+				outOther := filepath.Join(outDir, outOtherName)
 
 				fmt.Printf("  Output ghi ra: %s%s%s\n", colors.CyanNeon, filepath.Base(outMatch), colors.Reset)
 				fmt.Printf("  Output còn lại: %s%s%s\n", colors.MangoGold, filepath.Base(outOther), colors.Reset)
 
-				_ = processor.ProcessDomainSplit(currentFile, outMatch, outOther, t.Arg)
-				createdFiles = append(createdFiles, filepath.Base(outMatch), filepath.Base(outOther))
+				if err := processor.ProcessDomainSplit(currentFile, outMatch, outOther, t.Arg); err != nil {
+					fmt.Printf("  %s[!] Lỗi xử lý [%d]: %v%s\n", colors.MangoRed, t.Feat.ID, err, colors.Reset)
+				} else {
+					createdFiles = append(createdFiles, filepath.Base(outMatch), filepath.Base(outOther))
+				}
 			} else {
 				outPath := getSafeOutputFilename(outDir, t.Feat, t.Arg)
 				fmt.Printf("  Output ghi ra: %s%s%s\n", colors.CyanNeon, filepath.Base(outPath), colors.Reset)
-				_ = processor.ProcessGeneric(currentFile, outPath, t.Feat, t.Arg)
-				createdFiles = append(createdFiles, filepath.Base(outPath))
+				if err := processor.ProcessGeneric(currentFile, outPath, t.Feat, t.Arg); err != nil {
+					fmt.Printf("  %s[!] Lỗi xử lý [%d]: %v%s\n", colors.MangoRed, t.Feat.ID, err, colors.Reset)
+				} else {
+					createdFiles = append(createdFiles, filepath.Base(outPath))
+				}
 			}
 		}
 
-		ui.PlayCompletionSound()
-		ui.PrintCelebrationBox(createdFiles, outDir)
+		if len(createdFiles) > 0 {
+			ui.PlayCompletionSound()
+			ui.PrintCelebrationBox(createdFiles, outDir)
+		} else {
+			fmt.Printf("\n  %s[!] Không có file kết quả nào được tạo (dữ liệu rỗng hoặc đã bị lọc hết).%s\n\n", colors.Yellow, colors.Reset)
+		}
 
 		fmt.Printf("  %s[O]%s %sMở thư mục kết quả%s   %s│%s   %s[C]%s %sĐổi file combo%s   %s│%s   %s[Enter]%s %sđể tiếp tục:%s ",
 			colors.MangoGold, colors.Reset, colors.White, colors.Reset,
@@ -258,6 +368,7 @@ func main() {
 			chosen, _ := ui.OpenFileDialog("Chọn file dữ liệu mới (.txt)")
 			if chosen != "" {
 				currentFile = chosen
+				ui.SetupTerminalWindow()
 			}
 		}
 	}

@@ -77,3 +77,61 @@ func TestFunc27Rcr(t *testing.T) {
 	}
 }
 
+
+func TestFunc29InsertCharPos(t *testing.T) {
+	// Test 29 2@: password -> p@assword
+	res := Func29InsertCharPos("user@example.com:password", "2@")
+	if len(res) == 0 || res[0] != "user@example.com:p@assword" {
+		t.Fatalf("Expected p@assword, got %v", res)
+	}
+
+	// Test 29 3$: password -> pa$ssword
+	res = Func29InsertCharPos("user@example.com:password", "3$")
+	if len(res) == 0 || res[0] != "user@example.com:pa$ssword" {
+		t.Fatalf("Expected pa$ssword, got %v", res)
+	}
+
+	// Test 29 1#: password -> #password
+	res = Func29InsertCharPos("user@example.com:password", "1#")
+	if len(res) == 0 || res[0] != "user@example.com:#password" {
+		t.Fatalf("Expected #password, got %v", res)
+	}
+
+	// Test password too short for pos 10
+	res = Func29InsertCharPos("user@example.com:pass", "10@")
+	if len(res) != 0 {
+		t.Fatalf("Expected nil for pass shorter than pos, got %v", res)
+	}
+}
+
+func TestFunc30PassLast2DigitsToYear(t *testing.T) {
+	// password7679 -> password1979
+	res := Func30PassLast2DigitsToYear("user@test.com:password7679", "")
+	if len(res) == 0 || res[0] != "user@test.com:password1979" {
+		t.Fatalf("Expected password1979, got %v", res)
+	}
+
+	// password724401 -> password2001
+	res = Func30PassLast2DigitsToYear("user@test.com:password724401", "")
+	if len(res) == 0 || res[0] != "user@test.com:password2001" {
+		t.Fatalf("Expected password2001, got %v", res)
+	}
+
+	// Out of range (35) -> drop
+	res = Func30PassLast2DigitsToYear("user@test.com:password35", "")
+	if len(res) != 0 {
+		t.Fatalf("Expected nil for 35, got %v", res)
+	}
+
+	// Out of range (00) -> drop
+	res = Func30PassLast2DigitsToYear("user@test.com:password00", "")
+	if len(res) != 0 {
+		t.Fatalf("Expected nil for 00, got %v", res)
+	}
+
+	// No digits -> drop
+	res = Func30PassLast2DigitsToYear("user@test.com:password", "")
+	if len(res) != 0 {
+		t.Fatalf("Expected nil for no digits, got %v", res)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -86,6 +87,9 @@ func SplitByteRanges(filePath string, numChunks int) ([]ByteRange, error) {
 	}
 	defer f.Close()
 
+	if int64(numChunks) > fileSize {
+		numChunks = 1
+	}
 	step := fileSize / int64(numChunks)
 	startsMap := make(map[int64]bool)
 	startsMap[0] = true
@@ -150,6 +154,9 @@ func CountExactLines(filePath string) int64 {
 	}
 	if threads > 32 {
 		threads = 32
+	}
+	if fileSize < 1024*1024 {
+		threads = 1
 	}
 
 	step := fileSize / int64(threads)
@@ -427,6 +434,24 @@ func MergeTempFiles(tempPaths []string, finalPath string, label string) error {
 	return nil
 }
 
+// CleanupAllStaleTempFiles quét đệ quy thư mục Desktop/results và xóa sạch các file tạm .tmp từ các lần chạy trước bị gián đoạn
+func CleanupAllStaleTempFiles(baseDir string) (int, int64) {
+	var count int
+	var bytesFreed int64
+	_ = filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
+		if err == nil && !info.IsDir() {
+			name := info.Name()
+			if strings.HasPrefix(name, ".tmp_") || strings.HasSuffix(name, ".tmp") {
+				bytesFreed += info.Size()
+				_ = os.Remove(path)
+				count++
+			}
+		}
+		return nil
+	})
+	return count, bytesFreed
+}
+
 // CleanupStaleTempFiles dọn dẹp các file tạm .tmp cũ từ lần chạy trước
 func CleanupStaleTempFiles(dir string) (int, int64) {
 	entries, err := os.ReadDir(dir)
@@ -504,6 +529,26 @@ func ProcessGeneric(inputPath, outputPath string, feat features.Feature, arg str
 	for i := range ranges {
 		tempPaths[i] = filepath.Join(tempDir, fmt.Sprintf(".tmp_%s_part_%d.tmp", baseOut, i))
 	}
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	cleanupDone := make(chan struct{})
+	go func() {
+		select {
+		case <-sigChan:
+			fmt.Printf("\n\n  %s[!] Đã nhận lệnh dừng (Ctrl+C). Đang xóa sạch file tạm...%s\n", colors.MangoRed, colors.Reset)
+			for _, p := range tempPaths {
+				_ = os.Remove(p)
+			}
+			os.Exit(1)
+		case <-cleanupDone:
+			return
+		}
+	}()
+	defer func() {
+		signal.Stop(sigChan)
+		close(cleanupDone)
+	}()
 
 	// Kênh điều phối công việc
 	taskChan := make(chan ByteRange, actualTasks)
@@ -637,6 +682,9 @@ func ProcessGeneric(inputPath, outputPath string, feat features.Feature, arg str
 	close(stopProgress)
 
 	el := time.Since(startTime).Seconds()
+	if el < 0.001 {
+		el = 0.001
+	}
 	renderProgressBar(fileSize, fileSize, actualTasks, actualTasks, el, exactLines, exactLines, "Đang xử lý")
 	fmt.Println()
 
@@ -873,6 +921,9 @@ func ProcessDomainSplit(inputPath, outputMatched, outputOther string, domainArg 
 	close(stopProgress)
 
 	el := time.Since(startTime).Seconds()
+	if el < 0.001 {
+		el = 0.001
+	}
 	renderProgressBar(fileSize, fileSize, actualTasks, actualTasks, el, exactLines, exactLines, "Tách domain")
 	fmt.Println()
 

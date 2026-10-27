@@ -49,7 +49,8 @@ var Features = []Feature{
 	{26, "Chỉ lấy số trong Pass (Xóa chữ & ký tự, giữ >= 6 số)", "Chỉ lấy chữ số trong pass (xóa chữ và ký tự). Nếu pass sau khi lọc < 6 số thì xóa dòng.", "func_26_keep_only_numbers", false, transforms.Func26KeepOnlyNumbers},
 	{27, "N Chữ đầu Email + Số Pass (27 3D / 27 3C)", "Kế thừa Rcr.py: Ghép ĐẦU (3D) / CUỐI (3C) và tự gộp đủ 7 biến thể (!, @, $, *, #, @sau_2chữ).", "func_27_rcr_email_n_chars_pos", true, transforms.Func27RcrEmailNCharsPos},
 	{28, "Tên Email làm Mật khẩu mới (>=6 & <=15 chữ)", "Lấy chữ từ tên mail (6-15 chữ) viết hoa đầu làm pass mới (email:Tenmail).", "func_28_get_email_name", false, transforms.Func28GetEmailName},
-	{29, "Giữ User + Pass 2 âm tiết quan trọng & Giữ số", "Giữ nguyên User & Số trong Pass, trích xuất 2 âm tiết quan trọng của chữ trong Pass.", "func_29_important_syllables", false, transforms.Func29ImportantSyllables},
+	{29, "Chèn ký tự đặc biệt ở vị trí bất kỳ", "Chèn ký tự đặc biệt vào vị trí bất kỳ trong mật khẩu (Ví dụ: 29 2@, 29 3$)", "func_29_insert_special_char_pos", true, transforms.Func29InsertCharPos},
+	{30, "Ghép 2 số cuối Pass thành Năm (19xx / 20xx)", "50-99 ghép 1950-1999, 01-26 ghép 2001-2026. Ngoài phạm vi hoặc không số thì loại bỏ.", "func_30_pass_last_2_digits_to_year", false, transforms.Func30PassLast2DigitsToYear},
 }
 
 func GetFeatureByID(id int) *Feature {
@@ -80,7 +81,7 @@ func ParseChoiceString(choiceStr string) ([]Task, string) {
 		firstTok := fields[0]
 		var arg string
 		if len(fields) > 1 {
-			arg = strings.TrimSpace(fields[1])
+			arg = strings.Join(fields[1:], "")
 		}
 
 		// Cú pháp 11.x (ví dụ 11.all, 11.2)
@@ -110,6 +111,18 @@ func ParseChoiceString(choiceStr string) ([]Task, string) {
 			if f := GetFeatureByID(25); f != nil {
 				if subArg == "" {
 					subArg = "1"
+				}
+				tasks = append(tasks, Task{*f, subArg})
+				continue
+			}
+		}
+
+		// Cú pháp 29.x (ví dụ 29.2@, 29.3$)
+		if strings.HasPrefix(firstTok, "29.") {
+			subArg := strings.TrimPrefix(firstTok, "29.")
+			if f := GetFeatureByID(29); f != nil {
+				if subArg == "" {
+					subArg = "2@"
 				}
 				tasks = append(tasks, Task{*f, subArg})
 				continue

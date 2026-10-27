@@ -1,6 +1,7 @@
 ﻿package transforms
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -740,21 +741,96 @@ func ExtractImportantSyllables(word string) string {
 	return w[:4]
 }
 
-func Func29ImportantSyllables(line string, _ string) []string {
+// 29. Func29InsertCharPos chèn ký tự đặc biệt ở vị trí bất kỳ trong mật khẩu
+// Ví dụ: arg = "2@" -> chèn ở vị trí 2 (sau chữ 1): password -> p@assword
+// Ví dụ: arg = "3$" -> chèn ở vị trí 3 (sau chữ 2): password -> pa$ssword
+func Func29InsertCharPos(line string, arg string) []string {
 	u, p, ok := splitEmailPass(line)
-	if !ok {
+	if !ok || len(p) == 0 {
 		return nil
 	}
-	newPw := chunkRegex.ReplaceAllStringFunc(p, func(chunk string) string {
-		if extractLetters(chunk) == chunk {
-			return ExtractImportantSyllables(chunk)
+
+	arg = strings.TrimSpace(arg)
+	if arg == "" {
+		arg = "2@"
+	}
+
+	// Tách số vị trí ở đầu và ký tự đặc biệt
+	i := 0
+	for i < len(arg) && arg[i] >= '0' && arg[i] <= '9' {
+		i++
+	}
+
+	pos := 2
+	if i > 0 {
+		if parsed, err := strconv.Atoi(arg[:i]); err == nil && parsed > 0 {
+			pos = parsed
 		}
-		return chunk
-	})
+	}
+
+	insertChar := strings.TrimSpace(arg[i:])
+	if insertChar == "" {
+		insertChar = "@"
+	}
+
+	// 1-based indexing: vị trí 2 -> index 1 (chèn sau ký tự thứ 1)
+	idx := pos - 1
+	if idx > len(p) {
+		return nil // Không đủ ký tự trong mật khẩu để chèn
+	}
+	if idx < 0 {
+		idx = 0
+	}
+
+	newPw := p[:idx] + insertChar + p[idx:]
 	return []string{u + ":" + newPw}
 }
 
 // TransformsMap ánh xạ tên hàm sang TransformFunc
+
+// 30. Func30PassLast2DigitsToYear lấy 2 số cuối mật khẩu ghép thành năm:
+// - 50 đến 99 -> ghép thành 1950 - 1999 (ví dụ: password7679 -> password1979)
+// - 01 đến 26 -> ghép thành 2001 - 2026 (ví dụ: password724401 -> password2001)
+// - Ngoài phạm vi này hoặc mật khẩu không có số -> loại bỏ dòng
+func Func30PassLast2DigitsToYear(line string, _ string) []string {
+	u, p, ok := splitEmailPass(line)
+	if !ok || len(p) == 0 {
+		return nil
+	}
+
+	digits := extractDigits(p)
+	if len(digits) < 2 {
+		return nil
+	}
+
+	last2 := digits[len(digits)-2:]
+	val, err := strconv.Atoi(last2)
+	if err != nil {
+		return nil
+	}
+
+	var year string
+	if val >= 50 && val <= 99 {
+		year = "19" + last2
+	} else if val >= 1 && val <= 26 {
+		year = fmt.Sprintf("20%02d", val)
+	} else {
+		return nil
+	}
+
+	textPart := strings.TrimRight(p, "0123456789")
+	if textPart == "" {
+		return nil
+	}
+
+	newPw := textPart + year
+	if len(newPw) < 6 {
+		return nil
+	}
+
+	return []string{u + ":" + newPw}
+}
+
 var TransformsMap = map[string]TransformFunc{
 	"func_103_beta":                            Func103Beta,
 	"func_2_word":                              Func2Word,
@@ -784,6 +860,7 @@ var TransformsMap = map[string]TransformFunc{
 	"func_26_keep_only_numbers":                Func26KeepOnlyNumbers,
 	"func_27_rcr_email_n_chars_pos":            Func27RcrEmailNCharsPos,
 	"func_28_get_email_name":                   Func28GetEmailName,
-	"func_29_important_syllables":              Func29ImportantSyllables,
+	"func_29_insert_special_char_pos":          Func29InsertCharPos,
+	"func_30_pass_last_2_digits_to_year":      Func30PassLast2DigitsToYear,
 }
 

@@ -1,4 +1,4 @@
-﻿package ui
+package ui
 
 import (
 	"fmt"
@@ -51,11 +51,12 @@ func PrintBanner() {
 }
 
 func PrintMenu() {
-	fmt.Printf("%s  DANH SÁCH 30 CHỨC NĂNG TỐI ƯU SIÊU TỐC:%s\n", colors.MangoGold, colors.Reset)
+	fmt.Printf("%s  DANH SÁCH 35 CHỨC NĂNG TỐI ƯU SIÊU TỐC:%s\n", colors.MangoGold, colors.Reset)
 	fmt.Printf("%s  ─────────────────────────────────────────────────────────────────────────────%s\n", colors.TextMuted, colors.Reset)
 
-	col1 := features.Features[:15]
-	col2 := features.Features[15:]
+	half := (len(features.Features) + 1) / 2
+	col1 := features.Features[:half]
+	col2 := features.Features[half:]
 
 	for i := 0; i < len(col1); i++ {
 		f1 := col1[i]
@@ -74,5 +75,6 @@ func PrintMenu() {
 	}
 	fmt.Printf("%s  ─────────────────────────────────────────────────────────────────────────────%s\n", colors.TextMuted, colors.Reset)
 	fmt.Printf("  %s[+] Chạy nhiều mục dùng dấu '|' (Ví dụ: 12 a | 14.2 | 21 H | 25.1 | 27 3D)%s\n", colors.MintGreen, colors.Reset)
+	fmt.Printf("  %s[+] Thêm dấu '+' khi cần LỌC TRÙNG EmEditor (Ví dụ: + 1 | 2 hoặc 12 a + | gõ riêng '+' để lọc file gốc)%s\n", colors.CyanNeon, colors.Reset)
 	fmt.Printf("  %s[C] Đổi sang mở file khác             [E] Thoát chương trình%s\n\n", colors.MangoAmber, colors.Reset)
 }

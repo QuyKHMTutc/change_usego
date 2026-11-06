@@ -1,4 +1,4 @@
-﻿package processor
+package processor
 
 import (
 	"strconv"
@@ -324,8 +324,26 @@ func renderProgressBar(
 	)
 }
 
-// MergeTempFiles gộp các file part tạm thành file kết quả cuối cùng với tốc độ SSD tối đa và thanh tiến trình trực quan
-func MergeTempFiles(tempPaths []string, finalPath string, label string) error {
+func hash128Bytes(b []byte) [2]uint64 {
+	const (
+		prime1 = uint64(1099511628211)
+		prime2 = uint64(14695981039346656037)
+		seed1  = uint64(14695981039346656037)
+		seed2  = uint64(1099511628211)
+	)
+	var h1 uint64 = seed1
+	var h2 uint64 = seed2
+
+	for i := 0; i < len(b); i++ {
+		x := uint64(b[i])
+		h1 = (h1 ^ x) * prime1
+		h2 = (h2 ^ (x + uint64(i))) * prime2
+	}
+	return [2]uint64{h1, h2}
+}
+
+// MergeTempFiles gộp các file part tạm thành file kết quả cuối cùng (hỗ trợ lọc trùng EmEditor cực nhanh)
+func MergeTempFiles(tempPaths []string, finalPath string, label string, dedup bool) (int64, int64, error) {
 	var totalMergeBytes int64
 	for _, p := range tempPaths {
 		if fi, err := os.Stat(p); err == nil {
@@ -335,20 +353,127 @@ func MergeTempFiles(tempPaths []string, finalPath string, label string) error {
 
 	fout, err := os.Create(finalPath)
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
 	defer fout.Close()
 
 	numParts := len(tempPaths)
+	modeStr := "SSD Block Merge"
+	if dedup {
+		modeStr = "SSD Dedup Merge (EmEditor Engine)"
+	}
 	if label == "" {
-		fmt.Printf("  %s> Đang gộp %d phân đoạn thành file kết quả (SSD Block Merge)...%s\n", colors.CyanNeon, numParts, colors.Reset)
+		fmt.Printf("  %s> Đang gộp %d phân đoạn thành file kết quả (%s)...%s\n", colors.CyanNeon, numParts, modeStr, colors.Reset)
 	} else {
-		fmt.Printf("  %s> Đang gộp %d phân đoạn cho [%s] (SSD Block Merge)...%s\n", colors.CyanNeon, numParts, label, colors.Reset)
+		fmt.Printf("  %s> Đang gộp %d phân đoạn cho [%s] (%s)...%s\n", colors.CyanNeon, numParts, label, modeStr, colors.Reset)
 	}
 
 	showProgress := totalMergeBytes > 5*1024*1024
 	var mergedBytes int64
 	t0 := time.Now()
+
+	if dedup {
+		// Chế độ lọc trùng giống EmEditor: dòng giống nhau bị loại bỏ, email giống pass khác giữ lại
+		bw := bufio.NewWriterSize(fout, 16*1024*1024)
+		seen := make(map[[2]uint64]struct{}, 1000000)
+		var validCount int64
+		var dupCount int64
+		var lastProgressTime time.Time
+
+		for _, p := range tempPaths {
+			fin, err := os.Open(p)
+			if err != nil {
+				continue
+			}
+			r := bufio.NewReaderSize(fin, 16*1024*1024)
+			for {
+				line, rErr := r.ReadBytes('\n')
+				if len(line) > 0 {
+					mergedBytes += int64(len(line))
+					n := len(line)
+					for n > 0 && (line[n-1] == '\n' || line[n-1] == '\r') {
+						n--
+					}
+					trimmed := line[:n]
+					if len(trimmed) > 0 {
+						h := hash128Bytes(trimmed)
+						if _, exists := seen[h]; exists {
+							dupCount++
+						} else {
+							seen[h] = struct{}{}
+							_, _ = bw.Write(trimmed)
+							_ = bw.WriteByte('\n')
+							validCount++
+						}
+					}
+
+					if showProgress && time.Since(lastProgressTime) > 80*time.Millisecond {
+						lastProgressTime = time.Now()
+						el := time.Since(t0).Seconds()
+						if el < 0.001 {
+							el = 0.001
+						}
+						speedMB := (float64(mergedBytes) / (1024 * 1024)) / el
+						pct := int64(100)
+						if totalMergeBytes > 0 {
+							pct = mergedBytes * 100 / totalMergeBytes
+							if pct > 100 {
+								pct = 100
+							}
+						}
+						mbDone := float64(mergedBytes) / (1024 * 1024)
+						mbTotal := float64(totalMergeBytes) / (1024 * 1024)
+
+						barLen := 20
+						filled := int(pct * int64(barLen) / 100)
+						if filled > barLen {
+							filled = barLen
+						}
+						bar := colors.MintGreen + strings.Repeat("█", filled) + colors.Reset + colors.White + strings.Repeat("░", barLen-filled) + colors.Reset
+
+						fmt.Printf(
+							"\r  %s[*] Đang lọc trùng & gộp:%s [%s] %s%s%3d%%%s (%.1f/%.1f MB) | %s%.1f MB/s%s | %sLoại bỏ: %s dòng trùng%s\033[K",
+							colors.MintGreen, colors.Reset,
+							bar,
+							colors.Bold, colors.MintGreen, pct, colors.Reset,
+							mbDone, mbTotal,
+							colors.MintGreen, speedMB, colors.Reset,
+							colors.MangoYellow, formatCommas(dupCount), colors.Reset,
+						)
+					}
+				}
+				if rErr != nil {
+					break
+				}
+			}
+			fin.Close()
+			_ = os.Remove(p)
+		}
+		_ = bw.Flush()
+
+		if showProgress {
+			el := time.Since(t0).Seconds()
+			if el < 0.001 {
+				el = 0.001
+			}
+			speedMB := (float64(mergedBytes) / (1024 * 1024)) / el
+			mbTotal := float64(totalMergeBytes) / (1024 * 1024)
+			bar := colors.MintGreen + strings.Repeat("█", 20) + colors.Reset
+			fmt.Printf(
+				"\r  %s[*] Đang lọc trùng & gộp:%s [%s] %s%s100%%%s (%.1f/%.1f MB) | %s%.1f MB/s%s | %sĐã loại sạch %s dòng trùng%s\033[K\n",
+				colors.MintGreen, colors.Reset,
+				bar,
+				colors.Bold, colors.MintGreen, colors.Reset,
+				mbTotal, mbTotal,
+				colors.MintGreen, speedMB, colors.Reset,
+				colors.MangoYellow, formatCommas(dupCount), colors.Reset,
+			)
+		}
+
+		return validCount, dupCount, nil
+	}
+
+	// Chế độ không lọc trùng: Copy theo khối 32MB siêu tốc
 	buf := make([]byte, 32*1024*1024) // 32MB buffer
 
 	for _, p := range tempPaths {
@@ -431,7 +556,7 @@ func MergeTempFiles(tempPaths []string, finalPath string, label string) error {
 		)
 	}
 
-	return nil
+	return 0, 0, nil
 }
 
 // CleanupAllStaleTempFiles quét đệ quy thư mục Desktop/results và xóa sạch các file tạm .tmp từ các lần chạy trước bị gián đoạn
@@ -476,8 +601,8 @@ func CleanupStaleTempFiles(dir string) (int, int64) {
 	return cnt, bytesFreed
 }
 
-// MergeTempFiles gộp các file part tạm thành file kết quả cuối cùng với tốc độ SSD tối đa (32MB block copy)
-func ProcessGeneric(inputPath, outputPath string, feat features.Feature, arg string) error {
+// ProcessGeneric xử lý các chức năng chung với kiến trúc đa luồng song song
+func ProcessGeneric(inputPath, outputPath string, feat features.Feature, arg string, dedup bool) error {
 	startTime := time.Now()
 	fi, err := os.Stat(inputPath)
 	if err != nil {
@@ -633,11 +758,25 @@ func ProcessGeneric(inputPath, outputPath string, feat features.Feature, arg str
 								continue
 							}
 							taskLines++
-							u, p, ok := transforms.ExtractCleanCredentials(line)
-							if !ok {
+							var cleanLine string
+							if u, p, ok := transforms.ExtractCleanCredentials(line); ok {
+								cleanLine = u + ":" + p
+							} else if feat.ID == 0 {
+								if strings.Contains(line, ":") {
+									parts := strings.SplitN(line, ":", 2)
+									uCand := strings.TrimSpace(parts[0])
+									pCand := strings.TrimSpace(parts[1])
+									if uCand != "" && pCand != "" {
+										cleanLine = uCand + ":" + pCand
+									} else {
+										cleanLine = line
+									}
+								} else {
+									cleanLine = line
+								}
+							} else {
 								continue
 							}
-							cleanLine := u + ":" + p
 							results := feat.Handler(cleanLine, arg)
 							for _, res := range results {
 								bw.WriteString(res + "\n")
@@ -654,8 +793,24 @@ func ProcessGeneric(inputPath, outputPath string, feat features.Feature, arg str
 					line := strings.TrimSpace(string(leftover))
 					if len(line) > 0 {
 						taskLines++
+						var cleanLine string
 						if u, p, ok := transforms.ExtractCleanCredentials(line); ok {
-							cleanLine := u + ":" + p
+							cleanLine = u + ":" + p
+						} else if feat.ID == 0 {
+							if strings.Contains(line, ":") {
+								parts := strings.SplitN(line, ":", 2)
+								uCand := strings.TrimSpace(parts[0])
+								pCand := strings.TrimSpace(parts[1])
+								if uCand != "" && pCand != "" {
+									cleanLine = uCand + ":" + pCand
+								} else {
+									cleanLine = line
+								}
+							} else {
+								cleanLine = line
+							}
+						}
+						if cleanLine != "" {
 							results := feat.Handler(cleanLine, arg)
 							for _, res := range results {
 								bw.WriteString(res + "\n")
@@ -688,7 +843,10 @@ func ProcessGeneric(inputPath, outputPath string, feat features.Feature, arg str
 	renderProgressBar(fileSize, fileSize, actualTasks, actualTasks, el, exactLines, exactLines, "Đang xử lý")
 	fmt.Println()
 
-	_ = MergeTempFiles(tempPaths, outputPath, "")
+	validMerged, dupMerged, _ := MergeTempFiles(tempPaths, outputPath, "", dedup)
+	if dedup {
+		totalValid = validMerged
+	}
 
 	outMB := 0.0
 	if fi, err := os.Stat(outputPath); err == nil {
@@ -706,7 +864,16 @@ func ProcessGeneric(inputPath, outputPath string, feat features.Feature, arg str
 	fmt.Printf("  %s║%s%s               XỬ LÝ DỮ LIỆU HOÀN TẤT THÀNH CÔNG !              %s%s║%s\n", border, colors.Bold, colors.White, colors.Reset, border, colors.Reset)
 	fmt.Printf("  %s╠════════════════════════════════════════════════════════════════╣%s\n", border, colors.Reset)
 	fmt.Printf("  %s║%s  %sFile đầu vào:%s     %.2f MB (%s dòng)\n", border, colors.Reset, colors.White, colors.Reset, inMB, formatLinesCount(exactLines, true))
-	fmt.Printf("  %s║%s  %sFile kết quả:%s     %s%s%s%s (%.2f MB | %s dòng)\n", border, colors.Reset, colors.White, colors.Reset, colors.Bold, colors.CyanNeon, baseOut, colors.Reset, outMB, formatLinesCount(totalValid, true))
+	if dedup {
+		fmt.Printf("  %s║%s  %sFile kết quả:%s     %s%s%s%s (%.2f MB | %s dòng duy nhất)\n", border, colors.Reset, colors.White, colors.Reset, colors.Bold, colors.CyanNeon, baseOut, colors.Reset, outMB, formatLinesCount(totalValid, true))
+		if dupMerged > 0 {
+			fmt.Printf("  %s║%s  %sLọc trùng EmEditor:%s %s%s[TỰ ĐỘNG]%s Đã loại bỏ %s%s%s%s dòng trùng lặp\n", border, colors.Reset, colors.White, colors.Reset, colors.Bold, colors.MintGreen, colors.Reset, colors.Bold, colors.MangoYellow, formatCommas(dupMerged), colors.Reset)
+		} else {
+			fmt.Printf("  %s║%s  %sLọc trùng EmEditor:%s %s%s[TỰ ĐỘNG]%s Dữ liệu sạch, không có dòng trùng lặp\n", border, colors.Reset, colors.White, colors.Reset, colors.Bold, colors.MintGreen, colors.Reset)
+		}
+	} else {
+		fmt.Printf("  %s║%s  %sFile kết quả:%s     %s%s%s%s (%.2f MB | %s dòng)\n", border, colors.Reset, colors.White, colors.Reset, colors.Bold, colors.CyanNeon, baseOut, colors.Reset, outMB, formatLinesCount(totalValid, true))
+	}
 	fmt.Printf("  %s║%s  %sHuy động phần cứng:%s %s%s%d luồng CPU%s song song (Native Go Engine)\n", border, colors.Reset, colors.White, colors.Reset, colors.Bold, colors.MintGreen, numWorkers, colors.Reset)
 	fmt.Printf("  %s║%s  %sTốc độ trung bình:%s %s%s%s CPM%s (%.2f MB/s)\n", border, colors.Reset, colors.White, colors.Reset, colors.Bold, colors.MangoGold, formatLinesCount(avgCPM, true), colors.Reset, speedMB)
 	fmt.Printf("  %s║%s  %sThời gian chạy:%s   %s%.2f giây%s\n", border, colors.Reset, colors.White, colors.Reset, colors.MangoAmber, el, colors.Reset)
@@ -716,7 +883,7 @@ func ProcessGeneric(inputPath, outputPath string, feat features.Feature, arg str
 }
 
 // ProcessDomainSplit xử lý chức năng 25: Tách đôi file theo Domain thành 2 file song song (Matched và Other)
-func ProcessDomainSplit(inputPath, outputMatched, outputOther string, domainArg string) error {
+func ProcessDomainSplit(inputPath, outputMatched, outputOther string, domainArg string, dedup bool) error {
 	startTime := time.Now()
 	fi, err := os.Stat(inputPath)
 	if err != nil {
@@ -927,9 +1094,13 @@ func ProcessDomainSplit(inputPath, outputMatched, outputOther string, domainArg 
 	renderProgressBar(fileSize, fileSize, actualTasks, actualTasks, el, exactLines, exactLines, "Tách domain")
 	fmt.Println()
 
-	_ = MergeTempFiles(tempPathsMatch, outputMatched, filepath.Base(outputMatched))
+	validMatch, dupMatch, _ := MergeTempFiles(tempPathsMatch, outputMatched, filepath.Base(outputMatched), dedup)
+	validOther, dupOther, _ := MergeTempFiles(tempPathsOther, outputOther, filepath.Base(outputOther), dedup)
 
-	_ = MergeTempFiles(tempPathsOther, outputOther, filepath.Base(outputOther))
+	if dedup {
+		totalValidMatch = validMatch
+		totalValidOther = validOther
+	}
 
 	outMBMatch := 0.0
 	if fi, err := os.Stat(outputMatched); err == nil {
@@ -951,8 +1122,18 @@ func ProcessDomainSplit(inputPath, outputMatched, outputOther string, domainArg 
 	fmt.Printf("  %s║%s%s         TÁCH DOMAIN & PHẦN CÒN LẠI HOÀN TẤT THÀNH CÔNG !       %s%s║%s\n", border, colors.Bold, colors.White, colors.Reset, border, colors.Reset)
 	fmt.Printf("  %s╠════════════════════════════════════════════════════════════════╣%s\n", border, colors.Reset)
 	fmt.Printf("  %s║%s  %sFile đầu vào:%s     %.2f MB (%s dòng)\n", border, colors.Reset, colors.White, colors.Reset, inMB, formatLinesCount(exactLines, true))
-	fmt.Printf("  %s║%s  %sFile Domain:%s      %s%s%s%s (%.2f MB | %s dòng)\n", border, colors.Reset, colors.White, colors.Reset, colors.Bold, colors.CyanNeon, baseMatch, colors.Reset, outMBMatch, formatLinesCount(totalValidMatch, true))
-	fmt.Printf("  %s║%s  %sFile Còn Lại:%s     %s%s%s%s (%.2f MB | %s dòng)\n", border, colors.Reset, colors.White, colors.Reset, colors.Bold, colors.MangoGold, baseOther, colors.Reset, outMBOther, formatLinesCount(totalValidOther, true))
+	if dedup {
+		fmt.Printf("  %s║%s  %sFile Domain:%s      %s%s%s%s (%.2f MB | %s dòng - Loại %s dòng trùng)\n", border, colors.Reset, colors.White, colors.Reset, colors.Bold, colors.CyanNeon, baseMatch, colors.Reset, outMBMatch, formatLinesCount(totalValidMatch, true), formatCommas(dupMatch))
+		fmt.Printf("  %s║%s  %sFile Còn Lại:%s     %s%s%s%s (%.2f MB | %s dòng - Loại %s dòng trùng)\n", border, colors.Reset, colors.White, colors.Reset, colors.Bold, colors.MangoGold, baseOther, colors.Reset, outMBOther, formatLinesCount(totalValidOther, true), formatCommas(dupOther))
+		if dupMatch+dupOther > 0 {
+			fmt.Printf("  %s║%s  %sLọc trùng EmEditor:%s %s%s[TỰ ĐỘNG]%s Đã loại bỏ tổng %s%s%s%s dòng trùng lặp\n", border, colors.Reset, colors.White, colors.Reset, colors.Bold, colors.MintGreen, colors.Reset, colors.Bold, colors.MangoYellow, formatCommas(dupMatch+dupOther), colors.Reset)
+		} else {
+			fmt.Printf("  %s║%s  %sLọc trùng EmEditor:%s %s%s[TỰ ĐỘNG]%s Dữ liệu sạch, không có dòng trùng lặp\n", border, colors.Reset, colors.White, colors.Reset, colors.Bold, colors.MintGreen, colors.Reset)
+		}
+	} else {
+		fmt.Printf("  %s║%s  %sFile Domain:%s      %s%s%s%s (%.2f MB | %s dòng)\n", border, colors.Reset, colors.White, colors.Reset, colors.Bold, colors.CyanNeon, baseMatch, colors.Reset, outMBMatch, formatLinesCount(totalValidMatch, true))
+		fmt.Printf("  %s║%s  %sFile Còn Lại:%s     %s%s%s%s (%.2f MB | %s dòng)\n", border, colors.Reset, colors.White, colors.Reset, colors.Bold, colors.MangoGold, baseOther, colors.Reset, outMBOther, formatLinesCount(totalValidOther, true))
+	}
 	fmt.Printf("  %s║%s  %sHuy động phần cứng:%s %s%s%d luồng CPU%s song song (Native Go Engine)\n", border, colors.Reset, colors.White, colors.Reset, colors.Bold, colors.MintGreen, numWorkers, colors.Reset)
 	fmt.Printf("  %s║%s  %sTốc độ trung bình:%s %s%s%s CPM%s (%.2f MB/s)\n", border, colors.Reset, colors.White, colors.Reset, colors.Bold, colors.MangoGold, formatLinesCount(avgCPM, true), colors.Reset, speedMB)
 	fmt.Printf("  %s║%s  %sThời gian chạy:%s   %s%.2f giây%s\n", border, colors.Reset, colors.White, colors.Reset, colors.MangoAmber, el, colors.Reset)

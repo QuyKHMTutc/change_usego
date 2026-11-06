@@ -56,7 +56,7 @@ func SetupTerminalWindow() {
 	}
 
 	// 3. Goi mode con de co gian vua khit bang (124 cot x 48 dong)
-	cmd := exec.Command("cmd", "/c", "mode con: cols=124 lines=48")
+	cmd := exec.Command("cmd", "/c", "mode con: cols=124 lines=52")
 	_ = cmd.Run()
 
 	// 4. Can giua va co gian kich thuoc cua so gon gang vua van voi bang (khong mo qua rong)
@@ -69,7 +69,7 @@ func SetupTerminalWindow() {
 		if winW > int(sw)-30 {
 			winW = int(sw) - 30
 		}
-		winH := 890
+		winH := 940
 		if winH > int(sh)-50 {
 			winH = int(sh) - 50
 		}
@@ -156,6 +156,11 @@ var MenuItems = []MenuItem{
 	{28, "Tên Email làm Pass mới (6-15 chữ)", "Lấy chữ từ tên mail viết hoa đầu làm pass mới", false},
 	{29, "Chèn ký tự đặc biệt tại vị trí bất kỳ", "Gõ 29 <vị_trí><ký_tự> (Ví dụ: 29 2@, 29 3$...)", false},
 	{30, "Ghép 2 số cuối Pass thành Năm (19xx/20xx)", "50-99 ghép 1950-1999, 01-26 ghép 2001-2026 (loại còn lại)", false},
+	{31, "Xóa ký tự thứ N của Pass (31 2 / 31 C)", "31 2 xóa chữ thứ 2 (password->pssword), 31 C xóa chữ cuối", false},
+	{32, "Lấy N chữ Pass & Viết hoa đầu (32.<N>)", "Chỉ lấy chữ trong pass, hoa chữ đầu. Không lọc < 6", false},
+	{33, "Lấy tên Email đầu, giữa & cuối (>=3 chữ)", "Trước, giữa & sau ký tự đặc biệt, hoa đầu, >=3 chữ.", false},
+	{34, "Tên Email (đầu, giữa, cuối) + Số Pass", "Đầu, giữa, sau ký tự đặc biệt (>=3 chữ) + số mật khẩu cũ.", false},
+	{35, "Tách 2 số cuối & Số còn lại (>= 6 ký tự)", "2 số cuối & phần số còn lại", false},
 }
 
 // getFeatureThemeColor phoi mau hien dai theo tung cum chuc nang (Modern Functional Palette)
@@ -171,8 +176,10 @@ func getFeatureThemeColor(fid int) string {
 		return colors.Lavender // Nhom 4: Ky tu dac biet & To hop phim
 	case fid >= 21 && fid <= 25:
 		return colors.CyanNeon // Nhom 5: Bo loc chat luong & Tach Domain VIP
+	case fid >= 26 && fid <= 30:
+		return colors.RoseNeon // Nhom 6: AI / Tai cau truc am tiet & Nam
 	default:
-		return colors.RoseNeon // Nhom 6: AI / Tai cau truc am tiet nang cao
+		return colors.MangoAmber // Nhom 7: Bien doi vi tri nang cao
 	}
 }
 
@@ -203,7 +210,7 @@ func DisplayTableMenu() {
 		vBar,
 	)
 
-	fmt.Printf("  %s%s[Bước 2] DANH MỤC 30 CHỨC NĂNG XỬ LÝ COMBO%s\n", colors.Bold, colors.CyanNeon, colors.Reset)
+	fmt.Printf("  %s%s[Bước 2] DANH MỤC 35 CHỨC NĂNG XỬ LÝ COMBO%s\n", colors.Bold, colors.CyanNeon, colors.Reset)
 	fmt.Println(bTop)
 	fmt.Println(headerLine)
 	fmt.Println(bMid)
@@ -225,7 +232,7 @@ func DisplayTableMenu() {
 		)
 		fmt.Println(row)
 
-		if fid == 5 || fid == 10 || fid == 15 || fid == 20 || fid == 25 {
+		if fid == 5 || fid == 10 || fid == 15 || fid == 20 || fid == 25 || fid == 30 {
 			fmt.Println(bSep)
 		}
 	}
@@ -233,6 +240,8 @@ func DisplayTableMenu() {
 	fmt.Println(bBot)
 	fmt.Printf("  %s[+] Chạy nhiều chức năng: Ghép bằng dấu '|' (Ví dụ: %s12 a | 14.2 | 21 H | 25.1 | 27 3D%s)%s\n",
 		colors.CyanNeon, colors.MangoAmber, colors.CyanNeon, colors.Reset)
+	fmt.Printf("  %s[+] BẬT LỌC TRÙNG EMEDITOR: Thêm dấu '+' khi cần (Ví dụ: %s+ 1 | 2%s hoặc %s12 a +%s | Gõ riêng %s+%s để lọc trùng file gốc)%s\n",
+		colors.MintGreen, colors.MangoGold, colors.MintGreen, colors.MangoGold, colors.MintGreen, colors.MangoAmber, colors.MintGreen, colors.Reset)
 	fmt.Printf("  %s[C]%s %sĐổi sang mở file khác         %s[E]%s %sThoát chương trình       %s(Giữ Ctrl + lăn chuột để chỉnh cỡ chữ)%s\n",
 		colors.CyanNeon, colors.Reset, colors.TextRegular,
 		colors.MangoRed, colors.Reset, colors.TextRegular,

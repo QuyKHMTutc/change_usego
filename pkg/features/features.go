@@ -1,4 +1,4 @@
-﻿package features
+package features
 
 import (
 	"strconv"
@@ -16,8 +16,18 @@ type Feature struct {
 }
 
 type Task struct {
-	Feat Feature
-	Arg  string
+	Feat  Feature
+	Arg   string
+	Dedup bool
+}
+
+var FeatDedup = Feature{
+	ID:          0,
+	Name:        "Lọc trùng dữ liệu (EmEditor Duplicate Line Remover)",
+	Desc:        "Loại bỏ các dòng trùng lặp hoàn toàn, giữ lại dòng duy nhất (email giống pass khác vẫn giữ).",
+	HandlerName: "func_dedup",
+	HasArg:      false,
+	Handler:     transforms.FuncDedup,
 }
 
 var Features = []Feature{
@@ -51,9 +61,17 @@ var Features = []Feature{
 	{28, "Tên Email làm Mật khẩu mới (>=6 & <=15 chữ)", "Lấy chữ từ tên mail (6-15 chữ) viết hoa đầu làm pass mới (email:Tenmail).", "func_28_get_email_name", false, transforms.Func28GetEmailName},
 	{29, "Chèn ký tự đặc biệt ở vị trí bất kỳ", "Chèn ký tự đặc biệt vào vị trí bất kỳ trong mật khẩu (Ví dụ: 29 2@, 29 3$)", "func_29_insert_special_char_pos", true, transforms.Func29InsertCharPos},
 	{30, "Ghép 2 số cuối Pass thành Năm (19xx / 20xx)", "50-99 ghép 1950-1999, 01-26 ghép 2001-2026. Ngoài phạm vi hoặc không số thì loại bỏ.", "func_30_pass_last_2_digits_to_year", false, transforms.Func30PassLast2DigitsToYear},
+	{31, "Xóa ký tự thứ N của Mật khẩu (31 <N> / 31 C)", "Xóa ký tự thứ N (Ví dụ: 31 2 xóa chữ thứ 2, 31 C xóa chữ cuối cùng).", "func_31_delete_char_pos", true, transforms.Func31DeleteCharPos},
+	{32, "Lấy N chữ Mật khẩu & Viết hoa đầu (Không lọc <6)", "Chỉ lấy mỗi chữ cái (xóa số & ký tự), lấy N chữ đầu và viết hoa chữ đầu. Không lọc < 6.", "func_32_extract_n_letters", true, transforms.Func32ExtractNLetters},
+	{33, "Lấy tên Email đầu, giữa & cuối (>=3 chữ)", "Trước, giữa & sau ký tự đặc biệt, hoa đầu, >=3 chữ. Gộp 1 file", "func_33_email_name_parts", false, transforms.Func33EmailNameParts},
+	{34, "Tên Email (đầu, giữa, cuối) + Số Pass cũ", "Trước, giữa & sau ký tự đặc biệt (>=3 chữ) ghép toàn bộ số mật khẩu cũ", "func_34_email_name_parts_and_pw_nums", false, transforms.Func34EmailNamePartsAndPwNums},
+	{35, "Tách 2 số cuối & Phần số còn lại trong Pass (>=6 ký tự)", "Lấy 2 số cuối và phần số còn lại (Blessed2018 -> Blessed18 & Blessed20, giữ pass >= 6 ký tự)", "func_35_split_last_digits_and_remaining", false, transforms.Func35SplitLastDigitsAndRemaining},
 }
 
 func GetFeatureByID(id int) *Feature {
+	if id == 0 {
+		return &FeatDedup
+	}
 	for i := range Features {
 		if Features[i].ID == id {
 			return &Features[i]
@@ -62,13 +80,50 @@ func GetFeatureByID(id int) *Feature {
 	return nil
 }
 
-// ParseChoiceString phân tích chuỗi người dùng nhập (hỗ trợ ghép nhiều tác vụ bằng dấu |)
+// ParseChoiceString phân tích chuỗi người dùng nhập (hỗ trợ ghép nhiều tác vụ bằng dấu |, và cờ lọc trùng +)
 func ParseChoiceString(choiceStr string) ([]Task, string) {
 	rawParts := strings.Split(choiceStr, "|")
 	var tasks []Task
+	hasGlobalPlus := false
+
+	// Kiểm tra xem chuỗi có chứa dấu + (ở đầu, cuối hoặc toàn chuỗi)
+	trimmedChoice := strings.TrimSpace(choiceStr)
+	if strings.Contains(trimmedChoice, "+") {
+		isOnlyCharPlus := false
+		fields := strings.Fields(trimmedChoice)
+		if len(fields) == 2 && (fields[0] == "15" || fields[0] == "16") && fields[1] == "+" {
+			isOnlyCharPlus = true
+		}
+		if !isOnlyCharPlus {
+			hasGlobalPlus = true
+		}
+	}
 
 	for _, part := range rawParts {
 		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		// Nếu part chỉ là dấu +
+		if part == "+" {
+			hasGlobalPlus = true
+			continue
+		}
+
+		// Xử lý tiền tố/hậu tố + trong part (ví dụ: "+ 12 a", "+12 a", "12 a +", "1+")
+		if strings.HasPrefix(part, "+") {
+			hasGlobalPlus = true
+			part = strings.TrimSpace(strings.TrimPrefix(part, "+"))
+		}
+		if strings.HasSuffix(part, "+") {
+			pFields := strings.Fields(part)
+			if !(len(pFields) == 2 && (pFields[0] == "15" || pFields[0] == "16") && pFields[1] == "+") {
+				hasGlobalPlus = true
+				part = strings.TrimSpace(strings.TrimSuffix(part, "+"))
+			}
+		}
+
 		if part == "" {
 			continue
 		}
@@ -81,14 +136,19 @@ func ParseChoiceString(choiceStr string) ([]Task, string) {
 		firstTok := fields[0]
 		var arg string
 		if len(fields) > 1 {
-			arg = strings.Join(fields[1:], "")
+			if fields[len(fields)-1] == "+" && len(fields) > 2 {
+				hasGlobalPlus = true
+				arg = strings.Join(fields[1:len(fields)-1], "")
+			} else {
+				arg = strings.Join(fields[1:], "")
+			}
 		}
 
 		// Cú pháp 11.x (ví dụ 11.all, 11.2)
 		if strings.HasPrefix(firstTok, "11.") {
 			subArg := strings.TrimPrefix(firstTok, "11.")
 			if f := GetFeatureByID(11); f != nil {
-				tasks = append(tasks, Task{*f, subArg})
+				tasks = append(tasks, Task{*f, subArg, false})
 				continue
 			}
 		}
@@ -100,7 +160,7 @@ func ParseChoiceString(choiceStr string) ([]Task, string) {
 				if subArg == "" {
 					subArg = "2"
 				}
-				tasks = append(tasks, Task{*f, subArg})
+				tasks = append(tasks, Task{*f, subArg, false})
 				continue
 			}
 		}
@@ -112,7 +172,7 @@ func ParseChoiceString(choiceStr string) ([]Task, string) {
 				if subArg == "" {
 					subArg = "1"
 				}
-				tasks = append(tasks, Task{*f, subArg})
+				tasks = append(tasks, Task{*f, subArg, false})
 				continue
 			}
 		}
@@ -124,7 +184,58 @@ func ParseChoiceString(choiceStr string) ([]Task, string) {
 				if subArg == "" {
 					subArg = "2@"
 				}
-				tasks = append(tasks, Task{*f, subArg})
+				tasks = append(tasks, Task{*f, subArg, false})
+				continue
+			}
+		}
+
+		// Cú pháp 31.x (ví dụ 31.2, 31.C, 31.c)
+		if strings.HasPrefix(firstTok, "31.") {
+			subArg := strings.TrimPrefix(firstTok, "31.")
+			if f := GetFeatureByID(31); f != nil {
+				if subArg == "" {
+					subArg = "C"
+				}
+				tasks = append(tasks, Task{*f, subArg, false})
+				continue
+			}
+		}
+
+		// Cú pháp 32.x (ví dụ 32.4, 32.2)
+		if strings.HasPrefix(firstTok, "32.") {
+			subArg := strings.TrimPrefix(firstTok, "32.")
+			if f := GetFeatureByID(32); f != nil {
+				if subArg == "" {
+					subArg = "4"
+				}
+				tasks = append(tasks, Task{*f, subArg, false})
+				continue
+			}
+		}
+
+		// Cú pháp 33.x (ví dụ 33.D, 33.C)
+		if strings.HasPrefix(firstTok, "33.") {
+			subArg := strings.TrimPrefix(firstTok, "33.")
+			if f := GetFeatureByID(33); f != nil {
+				tasks = append(tasks, Task{*f, subArg, false})
+				continue
+			}
+		}
+
+		// Cú pháp 34.x (ví dụ 34.D, 34.C)
+		if strings.HasPrefix(firstTok, "34.") {
+			subArg := strings.TrimPrefix(firstTok, "34.")
+			if f := GetFeatureByID(34); f != nil {
+				tasks = append(tasks, Task{*f, subArg, false})
+				continue
+			}
+		}
+
+		// Cú pháp 35.x (ví dụ 35.2, 35.3)
+		if strings.HasPrefix(firstTok, "35.") {
+			subArg := strings.TrimPrefix(firstTok, "35.")
+			if f := GetFeatureByID(35); f != nil {
+				tasks = append(tasks, Task{*f, subArg, false})
 				continue
 			}
 		}
@@ -136,7 +247,7 @@ func ParseChoiceString(choiceStr string) ([]Task, string) {
 				if subArg == "" {
 					subArg = "H"
 				}
-				tasks = append(tasks, Task{*f, subArg})
+				tasks = append(tasks, Task{*f, subArg, false})
 				continue
 			}
 		}
@@ -145,7 +256,7 @@ func ParseChoiceString(choiceStr string) ([]Task, string) {
 		id, err := strconv.Atoi(firstTok)
 		if err == nil {
 			if f := GetFeatureByID(id); f != nil {
-				tasks = append(tasks, Task{*f, arg})
+				tasks = append(tasks, Task{*f, arg, false})
 				continue
 			}
 		}
@@ -156,7 +267,7 @@ func ParseChoiceString(choiceStr string) ([]Task, string) {
 			suffix := firstTok[2:]
 			if pID, err := strconv.Atoi(prefix2); err == nil {
 				if f := GetFeatureByID(pID); f != nil {
-					tasks = append(tasks, Task{*f, suffix})
+					tasks = append(tasks, Task{*f, suffix, false})
 					continue
 				}
 			}
@@ -164,7 +275,18 @@ func ParseChoiceString(choiceStr string) ([]Task, string) {
 	}
 
 	if len(tasks) == 0 {
+		if hasGlobalPlus {
+			// Người dùng chỉ gõ "+" -> Chạy chức năng lọc trùng cho file hiện tại
+			return []Task{{FeatDedup, "", true}}, ""
+		}
 		return nil, "Không nhận diện được chức năng hợp lệ!"
+	}
+
+	// Chỉ kích hoạt lọc trùng khi người dùng có gõ dấu '+'
+	if hasGlobalPlus {
+		for i := range tasks {
+			tasks[i].Dedup = true
+		}
 	}
 
 	return tasks, ""

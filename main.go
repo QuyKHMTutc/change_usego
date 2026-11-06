@@ -48,6 +48,8 @@ func getSafeOutputFilename(outDir string, feat features.Feature, arg string) str
 
 	var filename string
 	switch fid {
+	case 0:
+		filename = "dedup.txt"
 	case 11:
 		val := strings.ToLower(cleanArg)
 		if val == "all" || val == "tatca" {
@@ -113,6 +115,22 @@ func getSafeOutputFilename(outDir string, feat features.Feature, arg string) str
 		filename = fmt.Sprintf("29_%s.txt", safe)
 	case 30:
 		filename = "30_year.txt"
+	case 31:
+		val := strings.ToUpper(cleanArg)
+		if val == "" {
+			val = "C"
+		}
+		safe := cleanNameRegex.ReplaceAllString(val, "_")
+		filename = fmt.Sprintf("31_%s.txt", safe)
+	case 32:
+		val := cleanArg
+		if val == "" {
+			val = "4"
+		}
+		safe := cleanNameRegex.ReplaceAllString(val, "_")
+		filename = fmt.Sprintf("32_%s.txt", safe)
+	case 35:
+		filename = "35_split.txt"
 	default:
 		if cleanArg != "" {
 			safe := cleanNameRegex.ReplaceAllString(cleanArg, "_")
@@ -157,6 +175,18 @@ func promptCustomArg(featID int, reader *bufio.Reader) string {
 	case 29:
 		fmt.Printf("\n  %s> Nhập vị trí và ký tự muốn chèn %s(Ví dụ: 2@ chèn @ sau chữ 1, 3$ chèn $ sau chữ 2):%s ",
 			colors.CyanNeon, colors.TextMuted, colors.Reset)
+	case 31:
+		fmt.Printf("\n  %s> Nhập vị trí ký tự muốn xóa %s(Ví dụ: 2 xóa chữ thứ 2 | C xóa chữ cuối cùng):%s ",
+			colors.CyanNeon, colors.TextMuted, colors.Reset)
+	case 32:
+		fmt.Printf("\n  %s> Nhập số lượng chữ cái mật khẩu muốn lấy %s(Ví dụ: 2, 3, 4, 5... bất kỳ):%s ",
+			colors.CyanNeon, colors.TextMuted, colors.Reset)
+	case 33:
+		fmt.Printf("\n  %s> Chọn phần tên email muốn lấy %s(D: Trước ký tự | C: Sau ký tự | Enter: Lấy cả hai):%s ",
+			colors.CyanNeon, colors.TextMuted, colors.Reset)
+	case 34:
+		fmt.Printf("\n  %s> Chọn phần tên email muốn lấy %s(D: Trước ký tự | C: Sau ký tự | Enter: Lấy tất cả):%s ",
+			colors.CyanNeon, colors.TextMuted, colors.Reset)
 	default:
 		fmt.Printf("\n  %s> Nhập chuỗi ký tự muốn ghép cho chức năng [%d] %s(Ví dụ: Aa):%s ",
 			colors.CyanNeon, featID, colors.TextMuted, colors.Reset)
@@ -188,6 +218,10 @@ func promptCustomArg(featID int, reader *bufio.Reader) string {
 			return "3D"
 		case 29:
 			return "2@"
+		case 31:
+			return "C"
+		case 32:
+			return "4"
 		}
 	}
 
@@ -307,13 +341,30 @@ func main() {
 		}
 
 		outDir := getResultsDir(currentFile)
-		fmt.Printf("\n  %s===> BẮT ĐẦU XỬ LÝ %d TÁC VỤ...%s\n\n", colors.CyanNeon, len(tasks), colors.Reset)
+		hasAnyDedup := false
+		for _, t := range tasks {
+			if t.Dedup {
+				hasAnyDedup = true
+				break
+			}
+		}
+
+		if hasAnyDedup {
+			fmt.Printf("\n  %s===> BẮT ĐẦU XỬ LÝ %d TÁC VỤ %s[CHẾ ĐỘ LỌC TRÙNG EMEDITOR: BẬT]%s...\n\n",
+				colors.CyanNeon, len(tasks), colors.MintGreen, colors.Reset)
+		} else {
+			fmt.Printf("\n  %s===> BẮT ĐẦU XỬ LÝ %d TÁC VỤ...%s\n\n", colors.CyanNeon, len(tasks), colors.Reset)
+		}
 
 		var createdFiles []string
 
 		for idx, t := range tasks {
-			fmt.Printf("  %s[%d/%d] Đang xử lý [%d]%s %s\n",
-				colors.CyanNeon, idx+1, len(tasks), t.Feat.ID, colors.Reset, t.Feat.Name)
+			dedupTag := ""
+			if t.Dedup {
+				dedupTag = fmt.Sprintf(" %s[+ Lọc trùng EmEditor]%s", colors.MintGreen, colors.Reset)
+			}
+			fmt.Printf("  %s[%d/%d] Đang xử lý [%d]%s %s%s\n",
+				colors.CyanNeon, idx+1, len(tasks), t.Feat.ID, colors.Reset, t.Feat.Name, dedupTag)
 
 			if t.Feat.ID == 25 {
 				outMatch := getSafeOutputFilename(outDir, t.Feat, t.Arg)
@@ -326,7 +377,7 @@ func main() {
 				fmt.Printf("  Output ghi ra: %s%s%s\n", colors.CyanNeon, filepath.Base(outMatch), colors.Reset)
 				fmt.Printf("  Output còn lại: %s%s%s\n", colors.MangoGold, filepath.Base(outOther), colors.Reset)
 
-				if err := processor.ProcessDomainSplit(currentFile, outMatch, outOther, t.Arg); err != nil {
+				if err := processor.ProcessDomainSplit(currentFile, outMatch, outOther, t.Arg, t.Dedup); err != nil {
 					fmt.Printf("  %s[!] Lỗi xử lý [%d]: %v%s\n", colors.MangoRed, t.Feat.ID, err, colors.Reset)
 				} else {
 					createdFiles = append(createdFiles, filepath.Base(outMatch), filepath.Base(outOther))
@@ -334,7 +385,7 @@ func main() {
 			} else {
 				outPath := getSafeOutputFilename(outDir, t.Feat, t.Arg)
 				fmt.Printf("  Output ghi ra: %s%s%s\n", colors.CyanNeon, filepath.Base(outPath), colors.Reset)
-				if err := processor.ProcessGeneric(currentFile, outPath, t.Feat, t.Arg); err != nil {
+				if err := processor.ProcessGeneric(currentFile, outPath, t.Feat, t.Arg, t.Dedup); err != nil {
 					fmt.Printf("  %s[!] Lỗi xử lý [%d]: %v%s\n", colors.MangoRed, t.Feat.ID, err, colors.Reset)
 				} else {
 					createdFiles = append(createdFiles, filepath.Base(outPath))

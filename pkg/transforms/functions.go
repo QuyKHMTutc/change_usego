@@ -9,14 +9,16 @@ import (
 )
 
 var (
-	nonAlnumRegex = regexp.MustCompile(`[^a-zA-Z0-9]`)
-	digitsRegex   = regexp.MustCompile(`\d`)
-	nonDigitsRegex = regexp.MustCompile(`\D`)
-	nonLettersRegex = regexp.MustCompile(`[^a-zA-Z]`)
+	nonAlnumRegex     = regexp.MustCompile(`[^a-zA-Z0-9]`)
+	digitsRegex       = regexp.MustCompile(`\d`)
+	nonDigitsRegex    = regexp.MustCompile(`\D`)
+	nonLettersRegex   = regexp.MustCompile(`[^a-zA-Z]`)
 	specialCharsRegex = regexp.MustCompile(`[!@$%&*+=,.'\-#_]`)
-	specialABE = regexp.MustCompile(`[!@$%&*+=,.'\#_:\-;]`)
-	syllableRegex = regexp.MustCompile(`(?i)([bcdfghjklmnpqrstvwxyz]*[aeiouy]+[bcdfghjklmnpqrstvwxyz]*)`)
-	chunkRegex = regexp.MustCompile(`[A-Za-z]+|\d+`)
+	specialABE        = regexp.MustCompile(`[!@$%&*+=,.'\#_:\-;]`)
+	syllableRegex     = regexp.MustCompile(`(?i)([bcdfghjklmnpqrstvwxyz]*[aeiouy]+[bcdfghjklmnpqrstvwxyz]*)`)
+	chunkRegex        = regexp.MustCompile(`[A-Za-z]+|\d+`)
+	dao2nRegex        = regexp.MustCompile(`[!@$%&*+=,'\-#_]`)
+	digitsOnlyRegex   = regexp.MustCompile(`\d+`)
 )
 
 func splitEmailPass(line string) (string, string, bool) {
@@ -264,7 +266,7 @@ func FuncDao2n(line string, _ string) []string {
 	if !ok {
 		return nil
 	}
-	pw = regexp.MustCompile(`[!@$%&*+=,'\-#_]`).ReplaceAllString(pw, "")
+	pw = dao2nRegex.ReplaceAllString(pw, "")
 	digits := extractDigits(pw)
 	if len(digits) == 0 {
 		return nil
@@ -658,8 +660,7 @@ func ParseNAndPos(arg string) (int, string) {
 	if strings.Contains(s, "C") {
 		pos = "C"
 	}
-	re := regexp.MustCompile(`\d+`)
-	m := re.FindString(s)
+	m := digitsOnlyRegex.FindString(s)
 	n := 3
 	if len(m) > 0 {
 		if v, err := strconv.Atoi(m); err == nil && v > 0 {
@@ -761,9 +762,11 @@ func ExtractImportantSyllables(word string) string {
 	return w[:4]
 }
 
-// 29. Func29InsertCharPos chèn ký tự đặc biệt ở vị trí bất kỳ trong mật khẩu
-// Ví dụ: arg = "2@" -> chèn ở vị trí 2 (sau chữ 1): password -> p@assword
-// Ví dụ: arg = "3$" -> chèn ở vị trí 3 (sau chữ 2): password -> pa$ssword
+// 29. Func29InsertCharPos chèn ký tự đặc biệt ở vị trí bất kỳ, đầu hoặc cuối trong mật khẩu
+// Hỗ trợ:
+// - Chèn ở CUỐI: 29 C,, 29 C@, 29 C!, 29 ,, 29 @... (password -> password, hoặc password@)
+// - Chèn ở ĐẦU: 29 D,, 29 D@, 29 D!... (password -> ,password)
+// - Chèn theo VỊ TRÍ: 29 2@, 29 3$, 29 2,... (password -> p@assword)
 func Func29InsertCharPos(line string, arg string) []string {
 	u, p, ok := splitEmailPass(line)
 	if !ok || len(p) == 0 {
@@ -772,20 +775,49 @@ func Func29InsertCharPos(line string, arg string) []string {
 
 	arg = strings.TrimSpace(arg)
 	if arg == "" {
-		arg = "2@"
+		arg = "C@"
 	}
 
-	// Tách số vị trí ở đầu và ký tự đặc biệt
+	upperArg := strings.ToUpper(arg)
+
+	// Trường hợp 1: Chèn vào CUỐI rõ ràng bằng C hoặc c (ví dụ: "C,", "C@", "C!", "C")
+	if strings.HasPrefix(upperArg, "C") {
+		insertChar := strings.TrimSpace(arg[1:])
+		if insertChar == "" {
+			insertChar = "@"
+		}
+		return []string{u + ":" + p + insertChar}
+	}
+
+	// Trường hợp 2: Chèn vào ĐẦU rõ ràng bằng D hoặc d (ví dụ: "D,", "D@", "D")
+	if strings.HasPrefix(upperArg, "D") {
+		insertChar := strings.TrimSpace(arg[1:])
+		if insertChar == "" {
+			insertChar = "@"
+		}
+		return []string{u + ":" + insertChar + p}
+	}
+
+	// Trường hợp 3: Kiểm tra xem có số vị trí ở đầu không (ví dụ: "2@", "3$", "2,")
 	i := 0
 	for i < len(arg) && arg[i] >= '0' && arg[i] <= '9' {
 		i++
 	}
 
-	pos := 2
-	if i > 0 {
-		if parsed, err := strconv.Atoi(arg[:i]); err == nil && parsed > 0 {
-			pos = parsed
+	// Nếu KHÔNG có số vị trí ở đầu (ví dụ người dùng chỉ gõ ",", "@", "#", "!" hoặc "29 ,", "29,")
+	// thì mặc định hiểu là người dùng muốn thêm ký tự đó vào CUỐI mật khẩu
+	if i == 0 {
+		insertChar := arg
+		if insertChar == "" {
+			insertChar = "@"
 		}
+		return []string{u + ":" + p + insertChar}
+	}
+
+	// Nếu CÓ số vị trí cụ thể (ví dụ 2@, 3$, 2,)
+	pos := 2
+	if parsed, err := strconv.Atoi(arg[:i]); err == nil && parsed > 0 {
+		pos = parsed
 	}
 
 	insertChar := strings.TrimSpace(arg[i:])

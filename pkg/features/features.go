@@ -59,7 +59,7 @@ var Features = []Feature{
 	{26, "Chỉ lấy số trong Pass (Xóa chữ & ký tự, giữ >= 6 số)", "Chỉ lấy chữ số trong pass (xóa chữ và ký tự). Nếu pass sau khi lọc < 6 số thì xóa dòng.", "func_26_keep_only_numbers", false, transforms.Func26KeepOnlyNumbers},
 	{27, "N Chữ đầu Email + Số Pass (27 3D / 27 3C)", "Kế thừa Rcr.py: Ghép ĐẦU (3D) / CUỐI (3C) và tự gộp đủ 7 biến thể (!, @, $, *, #, @sau_2chữ).", "func_27_rcr_email_n_chars_pos", true, transforms.Func27RcrEmailNCharsPos},
 	{28, "Tên Email làm Mật khẩu mới (>=6 & <=15 chữ)", "Lấy chữ từ tên mail (6-15 chữ) viết hoa đầu làm pass mới (email:Tenmail).", "func_28_get_email_name", false, transforms.Func28GetEmailName},
-	{29, "Chèn ký tự đặc biệt ở vị trí bất kỳ", "Chèn ký tự đặc biệt vào vị trí bất kỳ trong mật khẩu (Ví dụ: 29 2@, 29 3$)", "func_29_insert_special_char_pos", true, transforms.Func29InsertCharPos},
+	{29, "Chèn ký tự đặc biệt (Cuối C, Đầu D hoặc Vị trí)", "Thêm ký tự vào Cuối (29 C@, 29 C!), Đầu (29 D@) hoặc vị trí bất kỳ (29 2@, 29 3$).", "func_29_insert_special_char_pos", true, transforms.Func29InsertCharPos},
 	{30, "Ghép 2 số cuối Pass thành Năm (19xx / 20xx)", "50-99 ghép 1950-1999, 01-26 ghép 2001-2026. Ngoài phạm vi hoặc không số thì loại bỏ.", "func_30_pass_last_2_digits_to_year", false, transforms.Func30PassLast2DigitsToYear},
 	{31, "Xóa ký tự thứ N của Mật khẩu (31 <N> / 31 C)", "Xóa ký tự thứ N (Ví dụ: 31 2 xóa chữ thứ 2, 31 C xóa chữ cuối cùng).", "func_31_delete_char_pos", true, transforms.Func31DeleteCharPos},
 	{32, "Lấy N chữ Mật khẩu & Viết hoa đầu (Không lọc <6)", "Chỉ lấy mỗi chữ cái (xóa số & ký tự), lấy N chữ đầu và viết hoa chữ đầu. Không lọc < 6.", "func_32_extract_n_letters", true, transforms.Func32ExtractNLetters},
@@ -94,6 +94,12 @@ func ParseChoiceString(choiceStr string) ([]Task, string) {
 		if len(fields) == 2 && (fields[0] == "15" || fields[0] == "16") && fields[1] == "+" {
 			isOnlyCharPlus = true
 		}
+		if len(fields) == 3 && fields[0] == "29" && (strings.EqualFold(fields[1], "C") || strings.EqualFold(fields[1], "D")) && fields[2] == "+" {
+			isOnlyCharPlus = true
+		}
+		if len(fields) == 2 && fields[0] == "29" && (strings.EqualFold(fields[1], "C+") || strings.EqualFold(fields[1], "D+")) {
+			isOnlyCharPlus = true
+		}
 		if !isOnlyCharPlus {
 			hasGlobalPlus = true
 		}
@@ -118,7 +124,17 @@ func ParseChoiceString(choiceStr string) ([]Task, string) {
 		}
 		if strings.HasSuffix(part, "+") {
 			pFields := strings.Fields(part)
-			if !(len(pFields) == 2 && (pFields[0] == "15" || pFields[0] == "16") && pFields[1] == "+") {
+			isArgPlus := false
+			if len(pFields) == 2 && (pFields[0] == "15" || pFields[0] == "16") && pFields[1] == "+" {
+				isArgPlus = true
+			}
+			if len(pFields) == 3 && pFields[0] == "29" && (strings.EqualFold(pFields[1], "C") || strings.EqualFold(pFields[1], "D")) && pFields[2] == "+" {
+				isArgPlus = true
+			}
+			if len(pFields) == 2 && pFields[0] == "29" && (strings.EqualFold(pFields[1], "C+") || strings.EqualFold(pFields[1], "D+")) {
+				isArgPlus = true
+			}
+			if !isArgPlus {
 				hasGlobalPlus = true
 				part = strings.TrimSpace(strings.TrimSuffix(part, "+"))
 			}
@@ -137,8 +153,12 @@ func ParseChoiceString(choiceStr string) ([]Task, string) {
 		var arg string
 		if len(fields) > 1 {
 			if fields[len(fields)-1] == "+" && len(fields) > 2 {
-				hasGlobalPlus = true
-				arg = strings.Join(fields[1:len(fields)-1], "")
+				if fields[0] == "29" && (strings.EqualFold(fields[1], "C") || strings.EqualFold(fields[1], "D")) && len(fields) == 3 {
+					arg = strings.Join(fields[1:], "")
+				} else {
+					hasGlobalPlus = true
+					arg = strings.Join(fields[1:len(fields)-1], "")
+				}
 			} else {
 				arg = strings.Join(fields[1:], "")
 			}

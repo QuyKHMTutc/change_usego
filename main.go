@@ -173,7 +173,7 @@ func promptCustomArg(featID int, reader *bufio.Reader) string {
 		fmt.Printf("\n  %s> Nhập số ký tự và vị trí %s(Ví dụ: 3D cho vào đầu, 3C cho vào cuối):%s ",
 			colors.CyanNeon, colors.TextMuted, colors.Reset)
 	case 29:
-		fmt.Printf("\n  %s> Nhập vị trí và ký tự muốn chèn %s(Ví dụ: 2@ chèn @ sau chữ 1, 3$ chèn $ sau chữ 2):%s ",
+		fmt.Printf("\n  %s> Nhập ký tự hoặc vị trí muốn chèn %s(Ví dụ: C, hoặc , thêm phẩy ở cuối | C@ thêm @ ở cuối | 2@ chèn vị trí 2):%s ",
 			colors.CyanNeon, colors.TextMuted, colors.Reset)
 	case 31:
 		fmt.Printf("\n  %s> Nhập vị trí ký tự muốn xóa %s(Ví dụ: 2 xóa chữ thứ 2 | C xóa chữ cuối cùng):%s ",

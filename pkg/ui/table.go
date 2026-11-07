@@ -154,7 +154,7 @@ var MenuItems = []MenuItem{
 	{26, "Chỉ lấy số trong Pass (>= 6 số)", "Lấy số trong pass, xóa chữ & ký tự (giữ pass >= 6 số)", false},
 	{27, "N Chữ Email + Số Pass (27 3D / 27 3C)", "Ghép ĐẦU (3D) / CUỐI (3C) + gộp 7 biến thể (!, @, $, *, #)", false},
 	{28, "Tên Email làm Pass mới (6-15 chữ)", "Lấy chữ từ tên mail viết hoa đầu làm pass mới", false},
-	{29, "Chèn ký tự đặc biệt tại vị trí bất kỳ", "Gõ 29 <vị_trí><ký_tự> (Ví dụ: 29 2@, 29 3$...)", false},
+	{29, "Chèn ký tự đặc biệt (Cuối C, Đầu D hoặc Vị trí)", "Gõ 29 C<ký_tự> (thêm cuối), 29 D<ký_tự> (đầu) hoặc 29 <vị_trí><ký_tự>", false},
 	{30, "Ghép 2 số cuối Pass thành Năm (19xx/20xx)", "50-99 ghép 1950-1999, 01-26 ghép 2001-2026 (loại còn lại)", false},
 	{31, "Xóa ký tự thứ N của Pass (31 2 / 31 C)", "31 2 xóa chữ thứ 2 (password->pssword), 31 C xóa chữ cuối", false},
 	{32, "Lấy N chữ Pass & Viết hoa đầu (32.<N>)", "Chỉ lấy chữ trong pass, hoa chữ đầu. Không lọc < 6", false},

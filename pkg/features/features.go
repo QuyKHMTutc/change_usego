@@ -44,7 +44,7 @@ var Features = []Feature{
 	{11, "Lấy số từ Email thêm vào cuối Pass (tất cả số & 2 số cuối)", "Lấy số trong username email ghép vào đuôi pass. Hỗ trợ: 11 (cả hai), 11.all, 11.2", "func_13_email_nums_to_pw_end", true, transforms.Func13EmailNumsToPwEnd},
 	{12, "Mã hóa ký tự trong Pass (12 a, 12 i, 12 s)", "Thay ký tự: 12 a (a->@), 12 i (i->!), 12 s (s->$).", "func_14_char_replacement", true, transforms.Func14CharReplacement},
 	{13, "Viết hoa chữ cái sau Số cuối cùng", "Sau số ở vị trí cuối, chữ sẽ viết hoa. Không đúng điều kiện sẽ bị loại bỏ.", "func_viet_hoa_sau_so_cuoi", false, transforms.FuncVietHoaSauSoCuoi},
-	{14, "Lấy N chữ đầu Email + Số (Gõ 14.<N> tùy ý)", "Lấy N chữ đầu email (14.2, 14.3, 14.5...) ghép số pass cũ.", "func_16_email_n_chars", true, transforms.Func16EmailNChars},
+	{14, "N Chữ đầu Email + Số (Gõ 14 5D / 14 5C)", "5D: N chữ đầu email ở đầu + số mật khẩu. 5C: Đảo ngược (số mật khẩu ở đầu + N chữ đầu email ở cuối).", "func_16_email_n_chars", true, transforms.Func16EmailNChars},
 	{15, "Ký tự đặc biệt TRƯỚC SỐ (15 <ký tự tùy ý>)", "Username in hoa + [ký tự tùy ý] + số pass (Ví dụ: 15 @, 15 $, 15 !...).", "func_17_special_before_nums", true, transforms.Func17SpecialBeforeNums},
 	{16, "Ký tự đặc biệt SAU SỐ (16 <ký tự tùy ý>)", "Username in hoa + số pass + [ký tự tùy ý] (Ví dụ: 16 @, 16 #, 16 !...).", "func_18_special_after_nums", true, transforms.Func18SpecialAfterNums},
 	{17, "Tên Mail viết hoa đầu + Số mật khẩu", "Lấy tên email ghép số mật khẩu, không có số chỉ lấy tên.", "func_22_name_and_nums", false, transforms.Func22NameAndNums},
@@ -60,12 +60,15 @@ var Features = []Feature{
 	{27, "N Chữ đầu Email + Số Pass (27 3D / 27 3C)", "Kế thừa Rcr.py: Ghép ĐẦU (3D) / CUỐI (3C) và tự gộp đủ 7 biến thể (!, @, $, *, #, @sau_2chữ).", "func_27_rcr_email_n_chars_pos", true, transforms.Func27RcrEmailNCharsPos},
 	{28, "Tên Email làm Mật khẩu mới (>=6 & <=15 chữ)", "Lấy chữ từ tên mail (6-15 chữ) viết hoa đầu làm pass mới (email:Tenmail).", "func_28_get_email_name", false, transforms.Func28GetEmailName},
 	{29, "Chèn ký tự đặc biệt (Cuối C, Đầu D hoặc Vị trí)", "Thêm ký tự vào Cuối (29 C@, 29 C!), Đầu (29 D@) hoặc vị trí bất kỳ (29 2@, 29 3$).", "func_29_insert_special_char_pos", true, transforms.Func29InsertCharPos},
-	{30, "Ghép 2 số cuối Pass thành Năm (19xx / 20xx)", "50-99 ghép 1950-1999, 01-26 ghép 2001-2026. Ngoài phạm vi hoặc không số thì loại bỏ.", "func_30_pass_last_2_digits_to_year", false, transforms.Func30PassLast2DigitsToYear},
-	{31, "Xóa ký tự thứ N của Mật khẩu (31 <N> / 31 C)", "Xóa ký tự thứ N (Ví dụ: 31 2 xóa chữ thứ 2, 31 C xóa chữ cuối cùng).", "func_31_delete_char_pos", true, transforms.Func31DeleteCharPos},
+	{30, "Ghép 2 số cuối Pass thành Năm (19xx / 20xx)", "50-99 ghép 1950-1999, 00-30 ghép 2000-2030. Ngoài phạm vi hoặc không số thì loại bỏ.", "func_30_pass_last_2_digits_to_year", false, transforms.Func30PassLast2DigitsToYear},
+	{31, "Xóa ký tự của Mật khẩu (31 D / 31 C / 31 <N>)", "31 D xóa chữ đầu, 31 C xóa chữ cuối, 31 2 xóa chữ thứ 2.", "func_31_delete_char_pos", true, transforms.Func31DeleteCharPos},
 	{32, "Lấy N chữ Mật khẩu & Viết hoa đầu (Không lọc <6)", "Chỉ lấy mỗi chữ cái (xóa số & ký tự), lấy N chữ đầu và viết hoa chữ đầu. Không lọc < 6.", "func_32_extract_n_letters", true, transforms.Func32ExtractNLetters},
 	{33, "Lấy tên Email đầu, giữa & cuối (>=3 chữ)", "Trước, giữa & sau ký tự đặc biệt, hoa đầu, >=3 chữ. Gộp 1 file", "func_33_email_name_parts", false, transforms.Func33EmailNameParts},
-	{34, "Tên Email (đầu, giữa, cuối) + Số Pass cũ", "Trước, giữa & sau ký tự đặc biệt (>=3 chữ) ghép toàn bộ số mật khẩu cũ", "func_34_email_name_parts_and_pw_nums", false, transforms.Func34EmailNamePartsAndPwNums},
+	{34, "Tên Email + Số Pass (34 D / 34 C)", "34 D: Chữ đầu + Số cuối | 34 C (đảo ngược): Số đầu + Chữ cuối.", "func_34_email_name_parts_and_pw_nums", true, transforms.Func34EmailNamePartsAndPwNums},
 	{35, "Tách 2 số cuối & Phần số còn lại trong Pass (>=6 ký tự)", "Lấy 2 số cuối và phần số còn lại (Blessed2018 -> Blessed18 & Blessed20, giữ pass >= 6 ký tự)", "func_35_split_last_digits_and_remaining", false, transforms.Func35SplitLastDigitsAndRemaining},
+	{36, "Viết hoa N chữ cái đầu/cuối Mật khẩu (36 <N>D / 36 <N>C)", "36 2D: Viết hoa 2 chữ đầu (PAssword) | 36 2C: Viết hoa 2 chữ cuối (passwoRD).", "func_36_upper_n_letters", true, transforms.Func36UpperNLetters},
+	{37, "Mật khẩu viết hoa toàn bộ (37)", "Chuyển toàn bộ chữ cái trong pass thành chữ IN HOA (password -> PASSWORD).", "func_37_upper_all_password", false, transforms.Func37UpperAllPassword},
+	{38, "Chữ đầu Email ngăn cách + Số (38 D / 38 C)", "38 D: Chữ đầu các phần & chữ thứ 2 (Wp123, P123) | 38 C: Số đầu, >=6 ký tự.", "func_38_email_first_chars_and_pw_nums", true, transforms.Func38EmailFirstCharsAndPwNums},
 }
 
 func GetFeatureByID(id int) *Feature {
@@ -237,6 +240,9 @@ func ParseChoiceString(choiceStr string) ([]Task, string) {
 		if strings.HasPrefix(firstTok, "33.") {
 			subArg := strings.TrimPrefix(firstTok, "33.")
 			if f := GetFeatureByID(33); f != nil {
+				if subArg == "" {
+					subArg = "D"
+				}
 				tasks = append(tasks, Task{*f, subArg, false})
 				continue
 			}
@@ -246,6 +252,9 @@ func ParseChoiceString(choiceStr string) ([]Task, string) {
 		if strings.HasPrefix(firstTok, "34.") {
 			subArg := strings.TrimPrefix(firstTok, "34.")
 			if f := GetFeatureByID(34); f != nil {
+				if subArg == "" {
+					subArg = "D"
+				}
 				tasks = append(tasks, Task{*f, subArg, false})
 				continue
 			}
@@ -255,6 +264,30 @@ func ParseChoiceString(choiceStr string) ([]Task, string) {
 		if strings.HasPrefix(firstTok, "35.") {
 			subArg := strings.TrimPrefix(firstTok, "35.")
 			if f := GetFeatureByID(35); f != nil {
+				tasks = append(tasks, Task{*f, subArg, false})
+				continue
+			}
+		}
+
+		// Cú pháp 36.x (ví dụ 36.2D, 36.2C, 36.2)
+		if strings.HasPrefix(firstTok, "36.") {
+			subArg := strings.TrimPrefix(firstTok, "36.")
+			if f := GetFeatureByID(36); f != nil {
+				if subArg == "" {
+					subArg = "2D"
+				}
+				tasks = append(tasks, Task{*f, subArg, false})
+				continue
+			}
+		}
+
+		// Cú pháp 38.x (ví dụ 38.D, 38.C)
+		if strings.HasPrefix(firstTok, "38.") {
+			subArg := strings.TrimPrefix(firstTok, "38.")
+			if f := GetFeatureByID(38); f != nil {
+				if subArg == "" {
+					subArg = "D"
+				}
 				tasks = append(tasks, Task{*f, subArg, false})
 				continue
 			}
@@ -311,4 +344,3 @@ func ParseChoiceString(choiceStr string) ([]Task, string) {
 
 	return tasks, ""
 }
-

@@ -42,6 +42,31 @@ func getResultsDir(inputPath string) string {
 	return baseResults
 }
 
+func sanitizeArgForFilename(arg string) string {
+	s := strings.TrimSpace(arg)
+	if s == "" {
+		return ""
+	}
+	replacer := strings.NewReplacer(
+		",", "comma",
+		"@", "at",
+		"!", "excl",
+		"#", "hash",
+		"$", "dollar",
+		"%", "percent",
+		"*", "star",
+		"+", "plus",
+		".", "dot",
+	)
+	s = replacer.Replace(s)
+	s = cleanNameRegex.ReplaceAllString(s, "_")
+	for strings.Contains(s, "__") {
+		s = strings.ReplaceAll(s, "__", "_")
+	}
+	s = strings.Trim(s, "_")
+	return s
+}
+
 func getSafeOutputFilename(outDir string, feat features.Feature, arg string) string {
 	fid := feat.ID
 	cleanArg := strings.TrimSpace(arg)
@@ -57,7 +82,7 @@ func getSafeOutputFilename(outDir string, feat features.Feature, arg string) str
 		} else if val == "2" || val == "last2" {
 			filename = "11.2.txt"
 		} else if val != "" {
-			safe := cleanNameRegex.ReplaceAllString(val, "_")
+			safe := sanitizeArgForFilename(val)
 			filename = fmt.Sprintf("11_%s.txt", safe)
 		} else {
 			filename = "11.txt"
@@ -67,15 +92,29 @@ func getSafeOutputFilename(outDir string, feat features.Feature, arg string) str
 		if val == "" {
 			val = "a"
 		}
-		safe := cleanNameRegex.ReplaceAllString(val, "_")
+		safe := sanitizeArgForFilename(val)
 		filename = fmt.Sprintf("12_%s.txt", safe)
 	case 14:
 		val := cleanArg
 		if val == "" {
-			val = "2"
+			val = "2D"
 		}
-		safe := cleanNameRegex.ReplaceAllString(val, "_")
+		safe := sanitizeArgForFilename(val)
 		filename = fmt.Sprintf("14.%s.txt", safe)
+	case 15:
+		val := cleanArg
+		if val == "" {
+			val = "@"
+		}
+		safe := sanitizeArgForFilename(val)
+		filename = fmt.Sprintf("15_%s.txt", safe)
+	case 16:
+		val := cleanArg
+		if val == "" {
+			val = "@"
+		}
+		safe := sanitizeArgForFilename(val)
+		filename = fmt.Sprintf("16_%s.txt", safe)
 	case 21:
 		val := strings.ToUpper(cleanArg)
 		if val != "T" {
@@ -109,9 +148,12 @@ func getSafeOutputFilename(outDir string, feat features.Feature, arg string) str
 	case 29:
 		val := cleanArg
 		if val == "" {
-			val = "2@"
+			val = "C_at"
 		}
-		safe := cleanNameRegex.ReplaceAllString(val, "_")
+		safe := sanitizeArgForFilename(val)
+		if safe == "" {
+			safe = "cuoi"
+		}
 		filename = fmt.Sprintf("29_%s.txt", safe)
 	case 30:
 		filename = "30_year.txt"
@@ -120,20 +162,50 @@ func getSafeOutputFilename(outDir string, feat features.Feature, arg string) str
 		if val == "" {
 			val = "C"
 		}
-		safe := cleanNameRegex.ReplaceAllString(val, "_")
+		safe := sanitizeArgForFilename(val)
 		filename = fmt.Sprintf("31_%s.txt", safe)
 	case 32:
 		val := cleanArg
 		if val == "" {
 			val = "4"
 		}
-		safe := cleanNameRegex.ReplaceAllString(val, "_")
+		safe := sanitizeArgForFilename(val)
 		filename = fmt.Sprintf("32_%s.txt", safe)
+	case 33:
+		val := strings.ToUpper(cleanArg)
+		if val != "" {
+			filename = fmt.Sprintf("33_%s.txt", val)
+		} else {
+			filename = "33.txt"
+		}
+	case 34:
+		val := strings.ToUpper(cleanArg)
+		if val != "C" {
+			val = "D"
+		}
+		filename = fmt.Sprintf("34_%s.txt", val)
 	case 35:
 		filename = "35_split.txt"
+	case 36:
+		val := strings.ToUpper(cleanArg)
+		if val == "" {
+			val = "2D"
+		} else if !strings.HasSuffix(val, "D") && !strings.HasSuffix(val, "C") {
+			val = val + "D"
+		}
+		safe := sanitizeArgForFilename(val)
+		filename = fmt.Sprintf("36_upper_%s.txt", safe)
+	case 37:
+		filename = "37_upper_all.txt"
+	case 38:
+		val := strings.ToUpper(cleanArg)
+		if val != "C" {
+			val = "D"
+		}
+		filename = fmt.Sprintf("38_%s.txt", val)
 	default:
 		if cleanArg != "" {
-			safe := cleanNameRegex.ReplaceAllString(cleanArg, "_")
+			safe := sanitizeArgForFilename(cleanArg)
 			filename = fmt.Sprintf("%d_%s.txt", fid, safe)
 		} else {
 			filename = fmt.Sprintf("%d.txt", fid)
@@ -152,7 +224,7 @@ func promptCustomArg(featID int, reader *bufio.Reader) string {
 		fmt.Printf("\n  %s> Nhập ký tự muốn mã hóa %s(Chọn: a [a->@], i [i->!], s [s->$]):%s ",
 			colors.CyanNeon, colors.TextMuted, colors.Reset)
 	case 14:
-		fmt.Printf("\n  %s> Nhập số lượng chữ cái đầu email muốn lấy %s(Ví dụ: 2, 3, 4, 5... bất kỳ):%s ",
+		fmt.Printf("\n  %s> Nhập số chữ cái đầu email và vị trí %s(Ví dụ: 5D [Chữ đầu, số cuối] | 5C [Số đầu, chữ cuối] | Mặc định: 2D):%s ",
 			colors.CyanNeon, colors.TextMuted, colors.Reset)
 	case 15:
 		fmt.Printf("\n  %s> Nhập ký tự đặc biệt muốn chèn TRƯỚC số %s(Ví dụ: @, $, #, !, %%, _... bất kỳ):%s ",
@@ -176,16 +248,22 @@ func promptCustomArg(featID int, reader *bufio.Reader) string {
 		fmt.Printf("\n  %s> Nhập ký tự hoặc vị trí muốn chèn %s(Ví dụ: C, hoặc , thêm phẩy ở cuối | C@ thêm @ ở cuối | 2@ chèn vị trí 2):%s ",
 			colors.CyanNeon, colors.TextMuted, colors.Reset)
 	case 31:
-		fmt.Printf("\n  %s> Nhập vị trí ký tự muốn xóa %s(Ví dụ: 2 xóa chữ thứ 2 | C xóa chữ cuối cùng):%s ",
+		fmt.Printf("\n  %s> Nhập vị trí ký tự muốn xóa %s(D: Xóa chữ đầu | C: Xóa chữ cuối | Ví dụ: 2 xóa chữ thứ 2):%s ",
 			colors.CyanNeon, colors.TextMuted, colors.Reset)
 	case 32:
 		fmt.Printf("\n  %s> Nhập số lượng chữ cái mật khẩu muốn lấy %s(Ví dụ: 2, 3, 4, 5... bất kỳ):%s ",
 			colors.CyanNeon, colors.TextMuted, colors.Reset)
 	case 33:
-		fmt.Printf("\n  %s> Chọn phần tên email muốn lấy %s(D: Trước ký tự | C: Sau ký tự | Enter: Lấy cả hai):%s ",
+		fmt.Printf("\n  %s> Chọn phần tên email muốn lấy %s(D: Trước ký tự | C: Sau ký tự | Enter: Lấy tất cả):%s ",
 			colors.CyanNeon, colors.TextMuted, colors.Reset)
 	case 34:
-		fmt.Printf("\n  %s> Chọn phần tên email muốn lấy %s(D: Trước ký tự | C: Sau ký tự | Enter: Lấy tất cả):%s ",
+		fmt.Printf("\n  %s> Chọn vị trí ghép tên email và số mật khẩu %s(D: Chữ đầu + Số cuối | C: Đảo ngược [Số đầu + Chữ cuối] | Mặc định: D):%s ",
+			colors.CyanNeon, colors.TextMuted, colors.Reset)
+	case 36:
+		fmt.Printf("\n  %s> Nhập số lượng và vị trí muốn viết hoa %s(Ví dụ: 2D [2 chữ đầu] | 2C [2 chữ cuối] | Mặc định: 2D):%s ",
+			colors.CyanNeon, colors.TextMuted, colors.Reset)
+	case 38:
+		fmt.Printf("\n  %s> Chọn vị trí ghép chữ cái email và số mật khẩu %s(D: Chữ đầu + Số cuối | C: Đảo ngược [Số đầu + Chữ cuối] | Mặc định: D):%s ",
 			colors.CyanNeon, colors.TextMuted, colors.Reset)
 	default:
 		fmt.Printf("\n  %s> Nhập chuỗi ký tự muốn ghép cho chức năng [%d] %s(Ví dụ: Aa):%s ",
@@ -222,6 +300,14 @@ func promptCustomArg(featID int, reader *bufio.Reader) string {
 			return "C"
 		case 32:
 			return "4"
+		case 33:
+			return ""
+		case 34:
+			return "D"
+		case 36:
+			return "2D"
+		case 38:
+			return "D"
 		}
 	}
 

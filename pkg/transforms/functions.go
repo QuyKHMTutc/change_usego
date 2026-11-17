@@ -47,6 +47,16 @@ func extractDigits(s string) string {
 	return b.String()
 }
 
+func extractNonDigits(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			b.WriteByte(s[i])
+		}
+	}
+	return b.String()
+}
+
 func extractLetters(s string) string {
 	var b strings.Builder
 	for i := 0; i < len(s); i++ {
@@ -300,7 +310,7 @@ func FuncLapSo2(line string, _ string) []string {
 		return nil
 	}
 	nums := extractDigits(pw)
-	noNums := digitsRegex.ReplaceAllString(pw, "")
+	noNums := extractNonDigits(pw)
 	if len(nums) > 0 {
 		if len(nums) <= 2 {
 			return []string{email + ":" + noNums + nums + nums}
@@ -434,18 +444,34 @@ func FuncVietHoaSauSoCuoi(line string, _ string) []string {
 	return []string{email + ":" + newPw}
 }
 
+// parseNAndPosFeat14 cho chức năng 14:
+// - n: số lượng chữ cái đầu email muốn lấy (mặc định là 2)
+// - pos: "D" (chữ ở đầu, số mật khẩu ở cuối) hoặc "C" (đảo ngược lại: số mật khẩu ở đầu, chữ ở cuối)
+func parseNAndPosFeat14(arg string) (int, string) {
+	s := strings.ToUpper(strings.TrimSpace(arg))
+	pos := "D"
+	if strings.Contains(s, "C") {
+		pos = "C"
+	}
+	m := digitsOnlyRegex.FindString(s)
+	n := 2
+	if len(m) > 0 {
+		if v, err := strconv.Atoi(m); err == nil && v > 0 {
+			n = v
+		}
+	}
+	return n, pos
+}
+
 // 14. func_16_email_n_chars
+// - 14 5D (hoặc 14 5): N chữ đầu email ở ĐẦU + số mật khẩu cũ ở CUỐI: Chữ + Số (Ví dụ: David123)
+// - 14 5C: Đảo ngược lại: số mật khẩu cũ ở ĐẦU + N chữ đầu email ở CUỐI: Số + Chữ (Ví dụ: 123David)
 func Func16EmailNChars(line string, nArg string) []string {
 	email, pw, ok := splitEmailPass(line)
 	if !ok {
 		return nil
 	}
-	n := 2
-	if len(nArg) > 0 {
-		if v, err := strconv.Atoi(strings.TrimSpace(nArg)); err == nil && v > 0 {
-			n = v
-		}
-	}
+	n, pos := parseNAndPosFeat14(nArg)
 	uname := email
 	if idx := strings.IndexByte(email, '@'); idx >= 0 {
 		uname = email[:idx]
@@ -458,8 +484,18 @@ func Func16EmailNChars(line string, nArg string) []string {
 	if len(pwNums) == 0 {
 		return nil
 	}
-	prefix := Capitalize(unameLetters[:n])
-	return []string{email + ":" + prefix + pwNums}
+	userChars := Capitalize(unameLetters[:n])
+
+	var newPw string
+	if pos == "C" {
+		// 5C: Đảo ngược lại: mật khẩu đầu + chữ ở cuối
+		newPw = pwNums + userChars
+	} else {
+		// 5D: chữ ở đầu + số mật khẩu ở cuối
+		newPw = userChars + pwNums
+	}
+
+	return []string{email + ":" + newPw}
 }
 
 // 15. func_17_special_before_nums
@@ -608,7 +644,14 @@ func Func24RemoveSpecialChars(line string, _ string) []string {
 	if !ok {
 		return nil
 	}
-	newPw := nonAlnumRegex.ReplaceAllString(pw, "")
+	var b strings.Builder
+	for i := 0; i < len(pw); i++ {
+		c := pw[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+			b.WriteByte(c)
+		}
+	}
+	newPw := b.String()
 	if len(newPw) == 0 {
 		return nil
 	}
@@ -621,7 +664,7 @@ func Func25KeepOnlyLetters(line string, _ string) []string {
 	if !ok {
 		return nil
 	}
-	letters := nonLettersRegex.ReplaceAllString(pw, "")
+	letters := extractLetters(pw)
 	if len(letters) < 6 {
 		return nil
 	}
@@ -646,7 +689,7 @@ func Func26KeepOnlyNumbers(line string, _ string) []string {
 	if !ok {
 		return nil
 	}
-	nums := nonDigitsRegex.ReplaceAllString(pw, "")
+	nums := extractDigits(pw)
 	if len(nums) < 6 {
 		return nil
 	}
@@ -842,7 +885,7 @@ func Func29InsertCharPos(line string, arg string) []string {
 
 // 30. Func30PassLast2DigitsToYear lấy 2 số cuối mật khẩu ghép thành năm:
 // - 50 đến 99 -> ghép thành 1950 - 1999 (ví dụ: password7679 -> password1979)
-// - 01 đến 26 -> ghép thành 2001 - 2026 (ví dụ: password724401 -> password2001)
+// - 00 đến 30 -> ghép thành 2000 - 2030 (ví dụ: password724401 -> password2001, password00 -> password2000)
 // - Ngoài phạm vi này hoặc mật khẩu không có số -> loại bỏ dòng
 func Func30PassLast2DigitsToYear(line string, _ string) []string {
 	u, p, ok := splitEmailPass(line)
@@ -864,7 +907,7 @@ func Func30PassLast2DigitsToYear(line string, _ string) []string {
 	var year string
 	if val >= 50 && val <= 99 {
 		year = "19" + last2
-	} else if val >= 1 && val <= 26 {
+	} else if val >= 0 && val <= 30 {
 		year = fmt.Sprintf("20%02d", val)
 	} else {
 		return nil
@@ -884,9 +927,9 @@ func Func30PassLast2DigitsToYear(line string, _ string) []string {
 }
 
 // 31. Func31DeleteCharPos xóa ký tự thứ N của mật khẩu:
-// - 31 2: xóa ký tự thứ 2 (1-based: index 1). Ví dụ: password -> pssword
-// - 31 1: xóa ký tự thứ 1 (1-based: index 0). Ví dụ: password -> assword
+// - 31 D / 31 d: xóa ký tự đầu tiên (index 0). Ví dụ: password -> assword
 // - 31 C / 31 c: xóa ký tự cuối cùng (index len(p)-1). Ví dụ: password -> passwor
+// - 31 2: xóa ký tự thứ 2 (1-based: index 1). Ví dụ: password -> pssword
 func Func31DeleteCharPos(line string, arg string) []string {
 	u, p, ok := splitEmailPass(line)
 	if !ok || len(p) == 0 {
@@ -899,12 +942,19 @@ func Func31DeleteCharPos(line string, arg string) []string {
 	}
 
 	var newPw string
-	if strings.EqualFold(arg, "C") || strings.EqualFold(arg, "CUOI") {
+	upperArg := strings.ToUpper(arg)
+	if upperArg == "C" || upperArg == "CUOI" {
 		// Xóa ký tự cuối cùng
 		if len(p) <= 1 {
 			return nil
 		}
 		newPw = p[:len(p)-1]
+	} else if upperArg == "D" || upperArg == "DAU" {
+		// Xóa ký tự đầu tiên
+		if len(p) <= 1 {
+			return nil
+		}
+		newPw = p[1:]
 	} else {
 		// Xóa ký tự thứ N (1-based index)
 		n, err := strconv.Atoi(arg)
@@ -949,12 +999,12 @@ func Func32ExtractNLetters(line string, arg string) []string {
 	return []string{email + ":" + newPw}
 }
 
-// 33. Func33EmailNameParts lấy đầu và cuối tên Email trước và sau ký tự đặc biệt
+// 33. Func33EmailNameParts lấy đầu, giữa và cuối tên Email trước và sau ký tự đặc biệt (thuần chữ, không số):
 // - Ví dụ: dorina_ranga@hotmail.com -> Dorina và Ranga (email:Dorina và email:Ranga)
-// - Gõ 33 hoặc không có tham số: Lấy cả phần trước và phần sau (> 3 ký tự), gộp vào 1 file
-// - Gõ 33 D: Chỉ lấy phần trước ký tự đặc biệt (> 3 ký tự)
-// - Gõ 33 C: Chỉ lấy phần sau ký tự đặc biệt (> 3 ký tự)
-// - Nếu tên email không có ký tự đặc biệt phân cách: Lấy 6 ký tự đầu của username (viết hoa chữ đầu), đảm bảo > 3 ký tự
+// - Gõ 33 hoặc không có tham số: Lấy cả phần trước, giữa và phần sau (>= 3 ký tự), gộp vào 1 file
+// - Gõ 33 D: Chỉ lấy phần trước ký tự đặc biệt (>= 3 ký tự)
+// - Gõ 33 C: Chỉ lấy phần sau ký tự đặc biệt (>= 3 ký tự)
+// - Nếu tên email không có ký tự đặc biệt phân cách: Lấy 6 ký tự đầu của username (viết hoa chữ đầu), đảm bảo >= 3 ký tự
 // - Tất cả kết quả đều viết hoa chữ cái đầu tiên, các chữ còn lại viết thường
 func Func33EmailNameParts(line string, arg string) []string {
 	email, _, ok := splitEmailPass(line)
@@ -975,106 +1025,6 @@ func Func33EmailNameParts(line string, arg string) []string {
 		return nil
 	}
 	uname := email[:atIdx]
-
-	// Kiểm tra xem username có ký tự đặc biệt phân cách hay không
-	hasSpecial := false
-	for _, r := range uname {
-		if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
-		hasSpecial = true
-			break
-		}
-	}
-
-	argUpper := strings.ToUpper(strings.TrimSpace(arg))
-	var results []string
-
-	if hasSpecial {
-		// Tách username bởi tất cả các ký tự đặc biệt (hỗ trợ đầu, giữa, cuối)
-		rawParts := strings.FieldsFunc(uname, func(r rune) bool {
-			return !unicode.IsLetter(r) && !unicode.IsDigit(r)
-		})
-
-		var validParts []string
-		for _, rp := range rawParts {
-			letters := extractLetters(rp)
-			// Lấy >= 3 ký tự
-			if len(letters) >= 3 {
-				validParts = append(validParts, Capitalize(strings.ToLower(letters)))
-			}
-		}
-
-		if len(validParts) == 0 {
-			return nil
-		}
-
-		var targetParts []string
-		if argUpper == "D" {
-			targetParts = append(targetParts, validParts[0])
-		} else if argUpper == "C" {
-			targetParts = append(targetParts, validParts[len(validParts)-1])
-		} else {
-			targetParts = validParts
-		}
-
-		seen := make(map[string]bool)
-		for _, p := range targetParts {
-			if !seen[p] {
-				seen[p] = true
-				results = append(results, email+":"+p)
-			}
-		}
-	} else {
-		// Tên email không có ký tự đặc biệt: lấy 6 ký tự đầu
-		letters := extractLetters(uname)
-		if len(letters) >= 6 {
-			letters = letters[:6]
-		}
-		// Đảm bảo lấy >= 3 ký tự
-		if len(letters) >= 3 {
-			name := Capitalize(strings.ToLower(letters))
-			results = append(results, email+":"+name)
-		}
-	}
-
-	if len(results) == 0 {
-		return nil
-	}
-	return results
-}
-
-// 34. Func34EmailNamePartsAndPwNums lấy các phần tên Email (đầu, giữa, cuối) ghép thêm số mật khẩu cũ
-// - Ví dụ: world.traveler_carolyn@hotmail.com:Pass123 -> World123, Traveler123, Carolyn123
-// - Gõ 34 hoặc không có tham số: Lấy tất cả các phần (đầu, giữa, cuối >= 3 ký tự) ghép số mật khẩu cũ, gộp vào 1 file
-// - Gõ 34 D: Chỉ lấy phần đầu tiên (>= 3 ký tự) ghép số mật khẩu cũ
-// - Gõ 34 C: Chỉ lấy phần cuối cùng (>= 3 ký tự) ghép số mật khẩu cũ
-// - Nếu tên email không có ký tự đặc biệt phân cách: Lấy 6 ký tự đầu của username (viết hoa chữ đầu) ghép số mật khẩu cũ, đảm bảo >= 3 ký tự
-// - Tất cả kết quả đều viết hoa chữ cái đầu tiên của phần tên, các chữ còn lại viết thường
-func Func34EmailNamePartsAndPwNums(line string, arg string) []string {
-	email, pw, ok := splitEmailPass(line)
-	if !ok {
-		line = strings.TrimSpace(line)
-		if strings.Contains(line, "@") {
-			parts := strings.SplitN(line, ":", 2)
-			email = parts[0]
-			if len(parts) > 1 {
-				pw = parts[1]
-			}
-		} else {
-			return nil
-		}
-	}
-
-	atIdx := strings.IndexByte(email, '@')
-	if atIdx <= 0 {
-		return nil
-	}
-	uname := email[:atIdx]
-
-	// Trích xuất toàn bộ chữ số trong mật khẩu cũ
-	pwNums := extractDigits(pw)
-	if len(pwNums) == 0 {
-		return nil // Mật khẩu cũ không có số thì loại bỏ dòng
-	}
 
 	// Kiểm tra xem username có ký tự đặc biệt phân cách hay không
 	hasSpecial := false
@@ -1116,12 +1066,16 @@ func Func34EmailNamePartsAndPwNums(line string, arg string) []string {
 			targetParts = validParts
 		}
 
-		seen := make(map[string]bool)
 		for _, p := range targetParts {
-			newPw := p + pwNums
-			if !seen[newPw] {
-				seen[newPw] = true
-				results = append(results, email+":"+newPw)
+			duplicate := false
+			for _, r := range results {
+				if r == email+":"+p {
+					duplicate = true
+					break
+				}
+			}
+			if !duplicate {
+				results = append(results, email+":"+p)
 			}
 		}
 	} else {
@@ -1133,7 +1087,107 @@ func Func34EmailNamePartsAndPwNums(line string, arg string) []string {
 		// Đảm bảo lấy >= 3 ký tự
 		if len(letters) >= 3 {
 			name := Capitalize(strings.ToLower(letters))
-			results = append(results, email+":"+name+pwNums)
+			results = append(results, email+":"+name)
+		}
+	}
+
+	if len(results) == 0 {
+		return nil
+	}
+	return results
+}
+
+// 34. Func34EmailNamePartsAndPwNums lấy các phần tên Email (đầu, giữa, cuối) ghép thêm số mật khẩu cũ
+// - 34 D (hoặc mặc định): Chữ ở đầu + Số ở cuối (Ví dụ: world.traveler_carolyn@...:Pass123 -> Carolyn123)
+// - 34 C: Đảo ngược lại: Số ở đầu + Chữ ở cuối (Ví dụ: world.traveler_carolyn@...:Pass123 -> 123Carolyn)
+func Func34EmailNamePartsAndPwNums(line string, arg string) []string {
+	email, pw, ok := splitEmailPass(line)
+	if !ok {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, "@") {
+			parts := strings.SplitN(line, ":", 2)
+			email = parts[0]
+			if len(parts) > 1 {
+				pw = parts[1]
+			}
+		} else {
+			return nil
+		}
+	}
+
+	atIdx := strings.IndexByte(email, '@')
+	if atIdx <= 0 {
+		return nil
+	}
+	uname := email[:atIdx]
+
+	// Trích xuất toàn bộ chữ số trong mật khẩu cũ
+	pwNums := extractDigits(pw)
+	if len(pwNums) == 0 {
+		return nil // Mật khẩu cũ không có số thì loại bỏ dòng
+	}
+
+	// Kiểm tra xem username có ký tự đặc biệt phân cách hay không
+	hasSpecial := false
+	for _, r := range uname {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+			hasSpecial = true
+			break
+		}
+	}
+
+	argUpper := strings.ToUpper(strings.TrimSpace(arg))
+	if argUpper != "C" {
+		argUpper = "D"
+	}
+
+	var validParts []string
+	if hasSpecial {
+		// Tách username bởi tất cả các ký tự đặc biệt (hỗ trợ đầu, giữa, cuối)
+		rawParts := strings.FieldsFunc(uname, func(r rune) bool {
+			return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+		})
+
+		for _, rp := range rawParts {
+			letters := extractLetters(rp)
+			// Lấy >= 3 ký tự
+			if len(letters) >= 3 {
+				validParts = append(validParts, Capitalize(strings.ToLower(letters)))
+			}
+		}
+	} else {
+		// Tên email không có ký tự đặc biệt: lấy 6 ký tự đầu
+		letters := extractLetters(uname)
+		if len(letters) >= 6 {
+			letters = letters[:6]
+		}
+		// Đảm bảo lấy >= 3 ký tự
+		if len(letters) >= 3 {
+			validParts = append(validParts, Capitalize(strings.ToLower(letters)))
+		}
+	}
+
+	if len(validParts) == 0 {
+		return nil
+	}
+
+	var results []string
+	for _, p := range validParts {
+		var newPw string
+		if argUpper == "C" {
+			newPw = pwNums + p // Số ở đầu + Chữ ở cuối (đảo ngược)
+		} else {
+			newPw = p + pwNums // Chữ ở đầu + Số ở cuối
+		}
+		duplicate := false
+		for _, r := range results {
+			if strings.HasSuffix(r, ":"+newPw) {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			results = append(results, email+":"+newPw)
 		}
 	}
 
@@ -1207,6 +1261,215 @@ func Func35SplitLastDigitsAndRemaining(line string, arg string) []string {
 	return results
 }
 
+// 36. Func36UpperNLetters viết hoa N chữ cái ở đầu hoặc cuối trong mật khẩu:
+// - 36 <N>D (hoặc mặc định): Viết hoa N chữ cái đầu tiên (Ví dụ: password123 với 2D -> PAssword123)
+// - 36 <N>C: Viết hoa N chữ cái cuối cùng (Ví dụ: password123 với 2C -> passwoRD123)
+// - Không làm thay đổi số hoặc ký tự đặc biệt, tốc độ xử lý siêu tốc (tối ưu hóa zero-allocation)
+func Func36UpperNLetters(line string, nArg string) []string {
+	email, pw, ok := splitEmailPass(line)
+	if !ok || len(pw) == 0 {
+		return nil
+	}
+
+	pos := byte('D')
+	n := 2
+	nArg = strings.TrimSpace(nArg)
+	if len(nArg) > 0 {
+		last := nArg[len(nArg)-1]
+		numStr := nArg
+		if last == 'C' || last == 'c' {
+			pos = 'C'
+			numStr = strings.TrimSpace(nArg[:len(nArg)-1])
+		} else if last == 'D' || last == 'd' {
+			pos = 'D'
+			numStr = strings.TrimSpace(nArg[:len(nArg)-1])
+		}
+		if len(numStr) == 1 && numStr[0] >= '1' && numStr[0] <= '9' {
+			n = int(numStr[0] - '0')
+		} else if len(numStr) > 1 {
+			if v, err := strconv.Atoi(numStr); err == nil && v > 0 {
+				n = v
+			}
+		}
+	}
+
+	b := []byte(pw)
+	count := 0
+	if pos == 'C' {
+		// Viết hoa N chữ cái ở CUỐI
+		for i := len(b) - 1; i >= 0; i-- {
+			c := b[i]
+			if c >= 'a' && c <= 'z' {
+				b[i] = c - 32
+				count++
+				if count >= n {
+					break
+				}
+			} else if c >= 'A' && c <= 'Z' {
+				count++
+				if count >= n {
+					break
+				}
+			}
+		}
+	} else {
+		// Viết hoa N chữ cái ở ĐẦU
+		for i := 0; i < len(b); i++ {
+			c := b[i]
+			if c >= 'a' && c <= 'z' {
+				b[i] = c - 32
+				count++
+				if count >= n {
+					break
+				}
+			} else if c >= 'A' && c <= 'Z' {
+				count++
+				if count >= n {
+					break
+				}
+			}
+		}
+	}
+
+	return []string{email + ":" + string(b)}
+}
+
+// 37. Func37UpperAllPassword chuyển toàn bộ ký tự trong mật khẩu thành chữ HOA (UPPERCASE)
+// - Ví dụ: password123 -> PASSWORD123
+// - Ví dụ: pass!@#123 -> PASS!@#123
+func Func37UpperAllPassword(line string, _ string) []string {
+	email, pw, ok := splitEmailPass(line)
+	if !ok || len(pw) == 0 {
+		return nil
+	}
+	return []string{email + ":" + strings.ToUpper(pw)}
+}
+
+// 38. Func38EmailFirstCharsAndPwNums lấy ký tự đầu tiên của các phần email ngăn cách bởi ký tự đặc biệt,
+// ghép với dãy số trong mật khẩu cũ.
+// Đồng thời tạo thêm biến thể lấy chữ cái thứ 2 sau ngăn cách cho lên đầu (đảm bảo >= 6 ký tự).
+// - Ví dụ: war_pig88@hotmail.com:Elemental101988!
+//   -> 38 D: Wp101988 và P101988
+//   -> 38 C: 101988Wp và 101988P
+func Func38EmailFirstCharsAndPwNums(line string, arg string) []string {
+	email, pw, ok := splitEmailPass(line)
+	if !ok {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, "@") {
+			parts := strings.SplitN(line, ":", 2)
+			email = parts[0]
+			if len(parts) > 1 {
+				pw = parts[1]
+			}
+		} else {
+			return nil
+		}
+	}
+
+	atIdx := strings.IndexByte(email, '@')
+	if atIdx <= 0 {
+		return nil
+	}
+	uname := email[:atIdx]
+
+	// Trích xuất toàn bộ số trong mật khẩu cũ
+	pwNums := extractDigits(pw)
+	if len(pwNums) == 0 {
+		return nil // Mật khẩu cũ không có số thì bỏ qua
+	}
+
+	// Tách username bởi các ký tự đặc biệt (không phải chữ và số)
+	hasSpecial := false
+	for i := 0; i < len(uname); i++ {
+		c := uname[i]
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
+			hasSpecial = true
+			break
+		}
+	}
+	if !hasSpecial {
+		return nil // Bắt buộc phải có ký tự đặc biệt ngăn cách
+	}
+
+	var firstLetters []byte
+	inWord := false
+	foundLetterInWord := false
+
+	for i := 0; i < len(uname); i++ {
+		c := uname[i]
+		isAlnum := (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+		if isAlnum {
+			if !inWord {
+				inWord = true
+				foundLetterInWord = false
+			}
+			if !foundLetterInWord {
+				if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') {
+					firstLetters = append(firstLetters, c)
+					foundLetterInWord = true
+				}
+			}
+		} else {
+			inWord = false
+			foundLetterInWord = false
+		}
+	}
+
+	// Yêu cầu ít nhất 2 phần chữ cái được ngăn cách
+	if len(firstLetters) < 2 {
+		return nil
+	}
+
+	// Biến thể 1: Tất cả chữ cái đầu ghép lại (Chữ đầu viết hoa, các chữ sau viết thường, ví dụ: Yh, Wp)
+	allBytes := make([]byte, len(firstLetters))
+	copy(allBytes, firstLetters)
+	if allBytes[0] >= 'a' && allBytes[0] <= 'z' {
+		allBytes[0] -= 32
+	}
+	for i := 1; i < len(allBytes); i++ {
+		if allBytes[i] >= 'A' && allBytes[i] <= 'Z' {
+			allBytes[i] += 32
+		}
+	}
+	variant1 := string(allBytes)
+
+	// Biến thể 2: Chữ cái thứ 2 sau ngăn cách viết hoa (ví dụ: war_pig88 -> P, yazar_harun -> H)
+	secondChar := firstLetters[1]
+	if secondChar >= 'a' && secondChar <= 'z' {
+		secondChar -= 32
+	}
+	variant2 := string(secondChar)
+
+	variants := []string{variant1, variant2}
+
+	isC := false
+	arg = strings.TrimSpace(arg)
+	if len(arg) > 0 && (arg[len(arg)-1] == 'C' || arg[len(arg)-1] == 'c') {
+		isC = true
+	}
+
+	var results []string
+	seen := make(map[string]bool)
+	for _, v := range variants {
+		var newPw string
+		if isC {
+			newPw = pwNums + v // Số ở đầu, chữ ở cuối
+		} else {
+			newPw = v + pwNums // Chữ ở đầu, số ở cuối
+		}
+		// Đảm bảo mật khẩu >= 6 ký tự và không trùng lặp
+		if len(newPw) >= 6 && !seen[newPw] {
+			seen[newPw] = true
+			results = append(results, email+":"+newPw)
+		}
+	}
+
+	if len(results) == 0 {
+		return nil
+	}
+	return results
+}
+
 var TransformsMap = map[string]TransformFunc{
 	"func_dedup":                               FuncDedup,
 	"func_103_beta":                            Func103Beta,
@@ -1244,5 +1507,8 @@ var TransformsMap = map[string]TransformFunc{
 	"func_33_email_name_parts":                Func33EmailNameParts,
 	"func_34_email_name_parts_and_pw_nums":   Func34EmailNamePartsAndPwNums,
 	"func_35_split_last_digits_and_remaining": Func35SplitLastDigitsAndRemaining,
+	"func_36_upper_n_letters":                  Func36UpperNLetters,
+	"func_37_upper_all_password":               Func37UpperAllPassword,
+	"func_38_email_first_chars_and_pw_nums":   Func38EmailFirstCharsAndPwNums,
 }
 

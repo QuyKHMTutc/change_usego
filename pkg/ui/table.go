@@ -139,7 +139,7 @@ var MenuItems = []MenuItem{
 	{11, "Lấy số Email thêm vào cuối Pass", "Lấy tất cả số & 2 số cuối email ghép vào đuôi", false},
 	{12, "Mã hóa ký tự Pass (12 a, 12 i, 12 s)", "Gõ 12 a (a->@), 12 i (i->!), 12 s (s->$)", false},
 	{13, "Viết hoa chữ cái sau Số cuối cùng", "Sau con số cuối cùng, phần chữ sẽ viết hoa", false},
-	{14, "N Chữ đầu Email + Số (Gõ 14.<N> tùy ý)", "Lấy N chữ: 14.2 (2 chữ), 14.3, 14.5 (5 chữ)...", false},
+	{14, "N Chữ đầu Email + Số (14 5D / 14 5C)", "5D: Chữ đầu + Số cuối | 5C (đảo ngược): Số đầu + Chữ cuối", false},
 	{15, "Ký tự đặc biệt TRƯỚC SỐ (15 <ký tự>)", "Ký tự tùy ý: 15 @, 15 $, 15 !, 15 %, 15 _...", false},
 	{16, "Ký tự đặc biệt SAU SỐ (16 <ký tự>)", "Ký tự tùy ý: 16 @, 16 #, 16 !, 16 %, 16 _...", false},
 	{17, "Tên Email viết hoa đầu + Số mật khẩu", "Lấy tên email ghép số (không có số chỉ lấy tên)", false},
@@ -155,12 +155,15 @@ var MenuItems = []MenuItem{
 	{27, "N Chữ Email + Số Pass (27 3D / 27 3C)", "Ghép ĐẦU (3D) / CUỐI (3C) + gộp 7 biến thể (!, @, $, *, #)", false},
 	{28, "Tên Email làm Pass mới (6-15 chữ)", "Lấy chữ từ tên mail viết hoa đầu làm pass mới", false},
 	{29, "Chèn ký tự đặc biệt (Cuối C, Đầu D hoặc Vị trí)", "Gõ 29 C<ký_tự> (thêm cuối), 29 D<ký_tự> (đầu) hoặc 29 <vị_trí><ký_tự>", false},
-	{30, "Ghép 2 số cuối Pass thành Năm (19xx/20xx)", "50-99 ghép 1950-1999, 01-26 ghép 2001-2026 (loại còn lại)", false},
-	{31, "Xóa ký tự thứ N của Pass (31 2 / 31 C)", "31 2 xóa chữ thứ 2 (password->pssword), 31 C xóa chữ cuối", false},
+	{30, "Ghép 2 số cuối Pass thành Năm (19xx/20xx)", "50-99 ghép 1950-1999, 00-30 ghép 2000-2030 (loại còn lại)", false},
+	{31, "Xóa ký tự của Pass (31 D / 31 C / 31 N)", "31 D xóa chữ đầu, 31 C xóa chữ cuối, 31 2 xóa chữ thứ 2", false},
 	{32, "Lấy N chữ Pass & Viết hoa đầu (32.<N>)", "Chỉ lấy chữ trong pass, hoa chữ đầu. Không lọc < 6", false},
 	{33, "Lấy tên Email đầu, giữa & cuối (>=3 chữ)", "Trước, giữa & sau ký tự đặc biệt, hoa đầu, >=3 chữ.", false},
-	{34, "Tên Email (đầu, giữa, cuối) + Số Pass", "Đầu, giữa, sau ký tự đặc biệt (>=3 chữ) + số mật khẩu cũ.", false},
+	{34, "Tên Email + Số Pass (34 D / 34 C)", "34 D: Chữ đầu + Số cuối | 34 C (đảo ngược): Số đầu + Chữ cuối", false},
 	{35, "Tách 2 số cuối & Số còn lại (>= 6 ký tự)", "2 số cuối & phần số còn lại", false},
+	{36, "Viết hoa N chữ cái đầu/cuối Pass (36 <N>)", "36 2D viết hoa 2 chữ đầu (PAss), 36 2C viết hoa 2 chữ cuối (RD)...", false},
+	{37, "Mật khẩu viết hoa toàn bộ", "Chuyển toàn bộ mật khẩu thành chữ HOA (password -> PASSWORD)", false},
+	{38, "Chữ đầu Email ngăn cách + Số (38 D/38 C)", "38 D: Chữ đầu + Số (Wp123, P123) | 38 C: Số đầu, >=6 ký tự", false},
 }
 
 // getFeatureThemeColor phoi mau hien dai theo tung cum chuc nang (Modern Functional Palette)
@@ -210,7 +213,7 @@ func DisplayTableMenu() {
 		vBar,
 	)
 
-	fmt.Printf("  %s%s[Bước 2] DANH MỤC 35 CHỨC NĂNG XỬ LÝ COMBO%s\n", colors.Bold, colors.CyanNeon, colors.Reset)
+	fmt.Printf("  %s%s[Bước 2] DANH MỤC 38 CHỨC NĂNG XỬ LÝ COMBO%s\n", colors.Bold, colors.CyanNeon, colors.Reset)
 	fmt.Println(bTop)
 	fmt.Println(headerLine)
 	fmt.Println(bMid)
@@ -232,7 +235,7 @@ func DisplayTableMenu() {
 		)
 		fmt.Println(row)
 
-		if fid == 5 || fid == 10 || fid == 15 || fid == 20 || fid == 25 || fid == 30 {
+		if fid == 5 || fid == 10 || fid == 15 || fid == 20 || fid == 25 || fid == 30 || fid == 35 {
 			fmt.Println(bSep)
 		}
 	}
